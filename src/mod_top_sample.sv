@@ -29,9 +29,10 @@ module mod_top (
     // output wire        base_ram_we_n,   // SRAM 写使能，低有效
 
     // HDMI 图像输出
-    output wire [7: 0] video_red,   // 红色像素，8位
-    output wire [7: 0] video_green, // 绿色像素，8位
-    output wire [7: 0] video_blue,  // 蓝色像素，8位
+    input reg [11:0][11:0][1:0] pixiv,      // 全局颜色信息
+    output reg [7: 0] video_red,   // 红色像素，8位
+    output reg [7: 0] video_green, // 绿色像素，8位
+    output reg [7: 0] video_blue,  // 蓝色像素，8位
     output wire        video_hsync, // 行同步（水平同步）信号
     output wire        video_vsync, // 场同步（垂直同步）信号
     output wire        video_clk,   // 像素时钟输出
@@ -126,9 +127,33 @@ wire [11:0] vdata;  // 当前纵坐标
 
 // 生成彩条数据，分别取坐标低位作为 RGB 值
 // 警告：该图像生成方式仅供演示，请勿使用横纵坐标驱动大量逻辑！！
-assign video_red = vdata < 200 ? hdata[8:1] : 0;
-assign video_green = vdata >= 200 && vdata < 400 ? hdata[8:1] : 0;
-assign video_blue = vdata >= 400 ? hdata[8:1] : 0;
+
+reg [1:0] color;
+always_comb begin
+    color = pixiv[vdata][hdata];
+    case (color)
+        2'b01: begin
+            video_red   = 8'b11111111;
+            video_green = 8'b00000000;
+            video_blue  = 8'b00000000;
+        end
+        2'b10: begin
+            video_red   = 8'b00000000;
+            video_green = 8'b11111111;
+            video_blue  = 8'b00000000;
+        end
+        2'b11: begin
+            video_red   = 8'b11111111;
+            video_green = 8'b11111111;
+            video_blue  = 8'b11111111;
+        end
+        default: begin
+            video_red   = 8'b00000000;
+            video_green = 8'b00000000;
+            video_blue  = 8'b00000000;
+        end
+    endcase
+end
 
 assign video_clk = clk_vga;
 vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1) vga800x600at75 (
