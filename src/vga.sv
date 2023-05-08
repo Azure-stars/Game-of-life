@@ -16,6 +16,7 @@ module vga
 #(parameter WIDTH = 0, HSIZE = 0, HFP = 0, HSP = 0, HMAX = 0, VSIZE = 0, VFP = 0, VSP = 0, VMAX = 0, HSPP = 0, VSPP = 0)
 (
     input wire clk,
+    input reg [511: 0] status,   // 全局像素信息
     output wire hsync,
     output wire vsync,
     output reg [WIDTH - 1:0] hdata, // 水平数据，WIDTH位
@@ -31,7 +32,6 @@ module vga
 // HFP = HSIZE + FRONT_PROCH，其中FRONT_PROCH代表了图像右边的部分不可见区域的宽度
 // HSP = HFP + SYNC PULSE，其中SYNC_PULSE代表了同步信号区间，也是不可见的，
 // HMAX = HSP + BACK_PROCH，其中后沿代表了图像左边部分的不可见区域宽度  
-
 
 // hdata
 always @ (posedge clk)
@@ -54,63 +54,34 @@ begin
     end
 end
 
-reg [1:0] color = 3;        // 当前位置的像素颜色
-
-reg [WIDTH - 1:0] real_hdata = 0;   // 真正输出颜色区域的横坐标，与ROM大小有关
-reg [WIDTH - 1:0] real_vdata = 0;   // 真正输出颜色区域的纵坐标，与ROM大小有关
-
-always_comb begin 
-    if (hdata >= 512) begin
-        real_hdata = 0;
+always @ (posedge clk) begin
+    if(hdata < 512 && vdata < 512) begin
+       if (status[vdata / 32 * 32 + hdata / 32 * 2] == 0 && status[vdata / 32 * 32 + hdata / 32 * 2 + 1] == 1) begin
+            video_red   <= 8'b11111111;
+            video_green <= 8'b00000000;
+            video_blue  <= 8'b00000000;
+        end
+        else if (status[vdata / 32 * 32 + hdata / 32 * 2] == 1 && status[vdata / 32 * 32 + hdata / 32 * 2 + 1] == 0) begin
+            video_red   <= 8'b00000000;
+            video_green <= 8'b11111111;
+            video_blue  <= 8'b00000000;
+        end
+        else if (status[vdata / 32 * 32 + hdata / 32 * 2] == 1 && status[vdata / 32 * 32 + hdata / 32 * 2 + 1] == 1)  begin
+            video_red   <= 8'b11111111;
+            video_green <= 8'b11111111;
+            video_blue  <= 8'b11111111;
+        end
+        else begin
+            video_red   <= 8'b00000000;
+            video_green <= 8'b00000000;
+            video_blue  <= 8'b11111111;
+        end
     end
     else begin
-        real_hdata = hdata;
+        video_red   <= 8'b00000000;
+        video_green <= 8'b00000000;
+        video_blue  <= 8'b11111111;
     end
-    if (vdata >= 512) begin
-        real_vdata = 0;
-    end
-    else begin
-        real_vdata = vdata;
-    end
-end 
-
-ROM_2_65536 rom_2_65536 (
-    .address (real_vdata * 512 + real_hdata),
-    .clock (clk),
-    .q (color)
-);
-
-always_comb begin
-    if (hdata < 512 && hdata < 512) begin
-        case (color)
-            2'b01: begin
-                video_red   = 8'b11111111;
-                video_green = 8'b00000000;
-                video_blue  = 8'b00000000;
-            end
-            2'b10: begin
-                video_red   = 8'b00000000;
-                video_green = 8'b11111111;
-                video_blue  = 8'b00000000;
-            end
-            2'b11: begin
-                video_red   = 8'b11111111;
-                video_green = 8'b11111111;
-                video_blue  = 8'b11111111;
-            end
-            default: begin
-                video_red   = 8'b00000000;
-                video_green = 8'b00000000;
-                video_blue  = 8'b11111111;
-            end
-        endcase
-    end
-    else begin
-        video_red   = 8'b11111111;
-        video_green = 8'b11111111;
-        video_blue  = 8'b11111111;
-    end
-    
 end
 
 
@@ -118,5 +89,5 @@ end
 assign hsync = ((hdata >= HFP) && (hdata < HSP)) ? HSPP : !HSPP;
 assign vsync = ((vdata >= VFP) && (vdata < VSP)) ? VSPP : !VSPP;
 assign data_enable = ((hdata < HSIZE) & (vdata < VSIZE));
-
+// assign data_enable = 1;
 endmodule
