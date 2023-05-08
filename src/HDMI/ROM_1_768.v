@@ -4,7 +4,7 @@
 // MODULE: altsyncram 
 
 // ============================================================
-// File Name: ROM_2_65536.v
+// File Name: ROM_1_768.v
 // Megafunction Name(s):
 // 			altsyncram
 //
@@ -37,28 +37,32 @@
 // synopsys translate_off
 `timescale 1 ps / 1 ps
 // synopsys translate_on
-module ROM_2_65536 (
+module ROM_1_768 (
 	address,
 	clock,
+	rden,
 	q);
 
-	input	[15:0]  address;	// 读取的地址
+	input	[9:0]  address;
 	input	  clock;
-	output	[1:0]  q;			// 输出的像素q
+	input	  rden;
+	output	[0:0]  q;
 `ifndef ALTERA_RESERVED_QIS
 // synopsys translate_off
 `endif
 	tri1	  clock;
+	tri1	  rden;
 `ifndef ALTERA_RESERVED_QIS
 // synopsys translate_on
 `endif
 
-	wire [1:0] sub_wire0;
-	wire [1:0] q = sub_wire0[1:0];
+	wire [0:0] sub_wire0;
+	wire [0:0] q = sub_wire0[0:0];
 
 	altsyncram	altsyncram_component (
 				.address_a (address),
 				.clock0 (clock),
+				.rden_a (rden),
 				.q_a (sub_wire0),
 				.aclr0 (1'b0),
 				.aclr1 (1'b0),
@@ -72,11 +76,10 @@ module ROM_2_65536 (
 				.clocken1 (1'b1),
 				.clocken2 (1'b1),
 				.clocken3 (1'b1),
-				.data_a ({2{1'b1}}),
+				.data_a (1'b1),
 				.data_b (1'b1),
 				.eccstatus (),
 				.q_b (),
-				.rden_a (1'b1),
 				.rden_b (1'b1),
 				.wren_a (1'b0),
 				.wren_b (1'b0));
@@ -84,16 +87,16 @@ module ROM_2_65536 (
 		altsyncram_component.address_aclr_a = "NONE",
 		altsyncram_component.clock_enable_input_a = "BYPASS",
 		altsyncram_component.clock_enable_output_a = "BYPASS",
-		altsyncram_component.init_file = "./TestMif.mif",
+		altsyncram_component.init_file = "../src/HDMI/TestMif.mif",
 		altsyncram_component.intended_device_family = "Cyclone IV E",
 		altsyncram_component.lpm_hint = "ENABLE_RUNTIME_MOD=NO",
 		altsyncram_component.lpm_type = "altsyncram",
-		altsyncram_component.numwords_a = 65536,
+		altsyncram_component.numwords_a = 1024,
 		altsyncram_component.operation_mode = "ROM",
 		altsyncram_component.outdata_aclr_a = "NONE",
 		altsyncram_component.outdata_reg_a = "CLOCK0",
-		altsyncram_component.widthad_a = 16,
-		altsyncram_component.width_a = 2,
+		altsyncram_component.widthad_a = 10,
+		altsyncram_component.width_a = 1,
 		altsyncram_component.width_byteena_a = 1;
 
 
@@ -119,42 +122,44 @@ endmodule
 // Retrieval info: PRIVATE: JTAG_ENABLED NUMERIC "0"
 // Retrieval info: PRIVATE: JTAG_ID STRING "NONE"
 // Retrieval info: PRIVATE: MAXIMUM_DEPTH NUMERIC "0"
-// Retrieval info: PRIVATE: MIFfilename STRING "./src/TestMif.mif"
-// Retrieval info: PRIVATE: NUMWORDS_A NUMERIC "65536"
+// Retrieval info: PRIVATE: MIFfilename STRING "../src/HDMI/TestMif.mif"
+// Retrieval info: PRIVATE: NUMWORDS_A NUMERIC "1024"
 // Retrieval info: PRIVATE: RAM_BLOCK_TYPE NUMERIC "0"
 // Retrieval info: PRIVATE: RegAddr NUMERIC "1"
 // Retrieval info: PRIVATE: RegOutput NUMERIC "1"
 // Retrieval info: PRIVATE: SYNTH_WRAPPER_GEN_POSTFIX STRING "0"
 // Retrieval info: PRIVATE: SingleClock NUMERIC "1"
 // Retrieval info: PRIVATE: UseDQRAM NUMERIC "0"
-// Retrieval info: PRIVATE: WidthAddr NUMERIC "16"
-// Retrieval info: PRIVATE: WidthData NUMERIC "2"
-// Retrieval info: PRIVATE: rden NUMERIC "0"
+// Retrieval info: PRIVATE: WidthAddr NUMERIC "10"
+// Retrieval info: PRIVATE: WidthData NUMERIC "1"
+// Retrieval info: PRIVATE: rden NUMERIC "1"
 // Retrieval info: LIBRARY: altera_mf altera_mf.altera_mf_components.all
 // Retrieval info: CONSTANT: ADDRESS_ACLR_A STRING "NONE"
 // Retrieval info: CONSTANT: CLOCK_ENABLE_INPUT_A STRING "BYPASS"
 // Retrieval info: CONSTANT: CLOCK_ENABLE_OUTPUT_A STRING "BYPASS"
-// Retrieval info: CONSTANT: INIT_FILE STRING "./src/TestMif.mif"
+// Retrieval info: CONSTANT: INIT_FILE STRING "../src/HDMI/TestMif.mif"
 // Retrieval info: CONSTANT: INTENDED_DEVICE_FAMILY STRING "Cyclone IV E"
 // Retrieval info: CONSTANT: LPM_HINT STRING "ENABLE_RUNTIME_MOD=NO"
 // Retrieval info: CONSTANT: LPM_TYPE STRING "altsyncram"
-// Retrieval info: CONSTANT: NUMWORDS_A NUMERIC "65536"
+// Retrieval info: CONSTANT: NUMWORDS_A NUMERIC "1024"
 // Retrieval info: CONSTANT: OPERATION_MODE STRING "ROM"
 // Retrieval info: CONSTANT: OUTDATA_ACLR_A STRING "NONE"
 // Retrieval info: CONSTANT: OUTDATA_REG_A STRING "CLOCK0"
-// Retrieval info: CONSTANT: WIDTHAD_A NUMERIC "16"
-// Retrieval info: CONSTANT: WIDTH_A NUMERIC "2"
+// Retrieval info: CONSTANT: WIDTHAD_A NUMERIC "10"
+// Retrieval info: CONSTANT: WIDTH_A NUMERIC "1"
 // Retrieval info: CONSTANT: WIDTH_BYTEENA_A NUMERIC "1"
-// Retrieval info: USED_PORT: address 0 0 16 0 INPUT NODEFVAL "address[15..0]"
+// Retrieval info: USED_PORT: address 0 0 10 0 INPUT NODEFVAL "address[9..0]"
 // Retrieval info: USED_PORT: clock 0 0 0 0 INPUT VCC "clock"
-// Retrieval info: USED_PORT: q 0 0 2 0 OUTPUT NODEFVAL "q[1..0]"
-// Retrieval info: CONNECT: @address_a 0 0 16 0 address 0 0 16 0
+// Retrieval info: USED_PORT: q 0 0 1 0 OUTPUT NODEFVAL "q[0..0]"
+// Retrieval info: USED_PORT: rden 0 0 0 0 INPUT VCC "rden"
+// Retrieval info: CONNECT: @address_a 0 0 10 0 address 0 0 10 0
 // Retrieval info: CONNECT: @clock0 0 0 0 0 clock 0 0 0 0
-// Retrieval info: CONNECT: q 0 0 2 0 @q_a 0 0 2 0
-// Retrieval info: GEN_FILE: TYPE_NORMAL ROM_2_65536.v TRUE
-// Retrieval info: GEN_FILE: TYPE_NORMAL ROM_2_65536.inc FALSE
-// Retrieval info: GEN_FILE: TYPE_NORMAL ROM_2_65536.cmp FALSE
-// Retrieval info: GEN_FILE: TYPE_NORMAL ROM_2_65536.bsf TRUE
-// Retrieval info: GEN_FILE: TYPE_NORMAL ROM_2_65536_inst.v TRUE
-// Retrieval info: GEN_FILE: TYPE_NORMAL ROM_2_65536_bb.v TRUE
+// Retrieval info: CONNECT: @rden_a 0 0 0 0 rden 0 0 0 0
+// Retrieval info: CONNECT: q 0 0 1 0 @q_a 0 0 1 0
+// Retrieval info: GEN_FILE: TYPE_NORMAL ROM_1_768.v TRUE
+// Retrieval info: GEN_FILE: TYPE_NORMAL ROM_1_768.inc FALSE
+// Retrieval info: GEN_FILE: TYPE_NORMAL ROM_1_768.cmp FALSE
+// Retrieval info: GEN_FILE: TYPE_NORMAL ROM_1_768.bsf FALSE
+// Retrieval info: GEN_FILE: TYPE_NORMAL ROM_1_768_inst.v FALSE
+// Retrieval info: GEN_FILE: TYPE_NORMAL ROM_1_768_bb.v TRUE
 // Retrieval info: LIB_FILE: altera_mf

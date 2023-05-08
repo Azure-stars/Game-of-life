@@ -20,10 +20,10 @@ PLL_75MHz u_ip_pll(
 reg [11:0] hdata = 0;  // 当前横坐标
 reg [11:0] vdata = 0;  // 当前纵坐标
 
-parameter P_PARAM_N = 16;
-
-reg [P_PARAM_N * P_PARAM_N * 2 - 1: 0] status;
-reg [P_PARAM_N * P_PARAM_N * 2 - 1: 0] next_status;
+parameter P_PARAM_N = 32;
+parameter P_PARAM_M = 24;
+reg [P_PARAM_N * P_PARAM_M - 1: 0] status;
+reg [P_PARAM_N * P_PARAM_M - 1: 0] next_status;
 // reg [15: 0] pos;    // 在ROM中的位置
 // reg [1:0] color = 2;    // pos对应的颜色
 
@@ -35,10 +35,15 @@ parameter P_STATE_EVO_UPDATE = 3; // 更新完成
 parameter P_STATE_WAIT_FOR_EVO = 4; // 演化完成，等待下一次演化
 reg [5:0] real_hdata = 0;
 reg [5:0] real_vdata = 0;
-// ROM_2_65536 u_rom(
+reg [9:0] pos = 0;      // 在ROM中的位置
+// reg [1:0] color = 0;    // ROM当前颜色
+reg rden = 0;           // ROM读取使能
+// 例化一个ROM模块用于初始化数据
+// ROM_1_768 u_rom(
 //     .clock(clk_100m),
 //     .address(pos),
-//     .q(color)
+//     .q(color),
+//     .rden()
 // );
 reg [26:0] cnt = 0;     // 用于计数，用于产生像素时钟
 reg clk_evo = 0;            // 用于演化用的时钟
@@ -46,35 +51,29 @@ reg finish_evo = 0;     // 新一轮的演化已经完成
 always @ (posedge clk_100m) begin
     // 当前没有加入复位
     if (state == P_STATE_INIT) begin
+        rden <= 1;
         state <= P_STATE_READ_ROM_DATA;
     end
     else if (state == P_STATE_READ_ROM_DATA) begin
-        if (real_hdata == 15) begin
-            status[(real_vdata * P_PARAM_N + real_hdata) * 2] <= 1;
-            status[(real_vdata * P_PARAM_N + real_hdata) * 2 + 1] <= 1;
-            if (real_vdata == 15) begin
-                // status[real_vdata][real_hdata] <= color;
+        pos <= real_vdata * P_PARAM_N + real_hdata;
+        // status[pos] <= color;
+        if(real_hdata[0] == 1) begin
+            status[pos] <= 1;
+        end
+        else begin
+            status[pos] <= 0;
+        end
+        if (real_hdata == P_PARAM_N - 1) begin
+            if (real_vdata == P_PARAM_M - 1) begin;
+                rden <= 0;
                 state <= P_STATE_WAIT_FOR_EVO;
             end
             else begin
-                // status[real_vdata][real_hdata] <= color;
                 real_vdata <= real_vdata + 1;
                 real_hdata <= 0;
             end
         end
         else begin
-            if (real_hdata < 5) begin
-                status[(real_vdata * P_PARAM_N + real_hdata) * 2] <= 1;
-                status[(real_vdata * P_PARAM_N + real_hdata) * 2 + 1] <= 0;
-            end
-            else if (real_hdata < 10) begin
-                status[(real_vdata * P_PARAM_N + real_hdata) * 2] <= 0;
-                status[(real_vdata * P_PARAM_N + real_hdata) * 2 + 1] <= 1;
-            end
-            else begin
-                status[(real_vdata * P_PARAM_N + real_hdata) * 2] <= 1;
-                status[(real_vdata * P_PARAM_N + real_hdata) * 2 + 1] <= 1;
-            end
             real_hdata <= real_hdata + 1;
         end
     end
@@ -92,10 +91,9 @@ always @ (posedge clk_100m) begin
     else if (state == P_STATE_EVO_UPDATE) begin
         integer i;
         integer j;
-        for (i = 0; i < P_PARAM_N; i = i + 1) begin
+        for (i = 0; i < P_PARAM_M; i = i + 1) begin
             for (j = 0; j < P_PARAM_N; j = j + 1) begin
-                status[(i * P_PARAM_N + j) * 2] <= next_status[(i * P_PARAM_N + j) * 2];
-                status[(i * P_PARAM_N + j) * 2 + 1] <= next_status[(i * P_PARAM_N + j) * 2 + 1];
+                status[i * P_PARAM_N + j] <= next_status[i * P_PARAM_N + j];
             end
         end
         state <= P_STATE_WAIT_FOR_EVO;
@@ -113,7 +111,7 @@ always @ (posedge clk_vga) begin
     end
 end
 
-Evolution #(P_PARAM_N) evo(
+Evolution #(P_PARAM_N, P_PARAM_M) evo(
     .clk(clk_evo),
     .prev(status),
     .next(next_status),
@@ -121,7 +119,7 @@ Evolution #(P_PARAM_N) evo(
 );
 
 assign video_clk = clk_vga;
-vga #(12, 1024, 1048, 1184, 1328, 768, 771, 777, 806, 1, 1) vga800x600at75 (
+vga #(12, 1024, 1048, 1184, 1328, 768, 771, 777, 806, 1, 1, P_PARAM_N, P_PARAM_M) vag1024x768at70 (
     .clk(clk_vga), 
     .status(status),// 全局像素信息
     .hdata(hdata), //横坐标
