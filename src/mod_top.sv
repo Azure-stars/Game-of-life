@@ -126,8 +126,6 @@ sd_controller u_sd_controller (
     .ready_for_next_byte(sdc_write_ready)
 );
 // Demo
-reg [31:0] choose_file_no;
-reg [31:0] current_choose_file_no;
 reg [31:0] page_bias;
 reg [31:0] current_page;
 reg [31:0] target_page;
@@ -161,7 +159,7 @@ always @(posedge clk_spi or posedge reset_btn) begin
         counter <= 32'b0;
         number[15:8] <= 8'b0;
 
-		  current_choose_file_no <= 32'b0;
+		  current_page <= 32'b0;
         sdc_address <= 32'b000000000000;
         sdc_read <= 1'b0;
         sdc_write <= 1'b0;
@@ -173,12 +171,12 @@ always @(posedge clk_spi or posedge reset_btn) begin
 		  
 		  page_bias <= 9'b0;
     end else begin
-	     if (current_choose_file_no == choose_file_no) begin
+	     if (current_page == target_page) begin
 			  counter <= counter + 32'b1;
-			  if (counter == 32'd5_000_000) begin
+			  if (counter == 32'd500_000) begin
 					counter <= 32'b0;
 					read_byte <= read_byte + 9'b1;
-					number[15:8] <= {number[15:8], mem[read_byte]};
+					number[15:8] <= mem[read_byte];  // {number[15:8], mem[read_byte]};
 			  end
 
 			  casez(state_reg)
@@ -204,10 +202,10 @@ always @(posedge clk_spi or posedge reset_btn) begin
 			  endcase
 		  end else begin
 				counter <= 32'b0;
-				number[15:8] <= choose_file_no;
+				number[15:8] <= target_page;
 
-				current_choose_file_no <= choose_file_no;
-		      sdc_address <= choose_file_no + page_bias;
+				current_page <= target_page;
+		      sdc_address <= target_page + page_bias;
 				sdc_read <= 1'b0;
 				sdc_write <= 1'b0;
 				sdc_write_data <= 8'b0;
@@ -219,48 +217,64 @@ always @(posedge clk_spi or posedge reset_btn) begin
     end
 end
 
-keyboard u_keyboard (
-    .clock     (clk_in        ),
+wire pause;
+wire start;
+wire clear;
+reg [3:0] file_id;  
+
+KeyBoardController keyboard_controller (
+    .clk_in    (clk_in        ),
     .reset     (reset_btn     ),
     .ps2_clock (ps2_clock     ),
     .ps2_data  (ps2_data      ),
-    .scancode  (scancode      ),
-    .valid     (scancode_valid)
+	 .pause     (pause         ),
+	 .start     (start         ),
+	 .clear     (clear         ),
+	 .file_id   (number[7:0]   )
 );
 
-always @(posedge clk_in or posedge reset_btn) begin
-    if (reset_btn) begin
-        number[7:0] <= 8'b0;
-		  choose_file_no <= 9'd0 * 2048;
-    end else begin
-        if (scancode_valid) begin
-//            number[7:0] <= scancode;
-            casez(scancode)
-				    8'b01000101: begin
-				        choose_file_no <= 9'd0 * 2048;
-						  number[7:0] <= 3'd0;
-				    end
-				    8'b00010110: begin
-				        choose_file_no <= 9'd1 * 2048;
-						  number[7:0] <= 3'd1;
-				    end
-				    8'b00011110: begin
-				        choose_file_no <= 9'd2 * 2048;
-						  number[7:0] <= 3'd2;
-				    end
-				    8'b00100110: begin
-				        choose_file_no <= 9'd3 * 2048;
-						  number[7:0] <= 3'd3;
-				    end
-					 default: begin
-                end
-			   endcase
-        end
-    end
-end
+//keyboard u_keyboard (
+//    .clock     (clk_in        ),
+//    .reset     (reset_btn     ),
+//    .ps2_clock (ps2_clock     ),
+//    .ps2_data  (ps2_data      ),
+//    .scancode  (scancode      ),
+//    .valid     (scancode_valid)
+//);
+//
+//always @(posedge clk_in or posedge reset_btn) begin
+//    if (reset_btn) begin
+//        number[7:0] <= 8'b0;
+//		  target_page <= 9'd0 * 2048;
+//    end else begin
+//        if (scancode_valid) begin
+////            number[7:0] <= scancode;
+//            casez(scancode)
+//				    8'b01000101: begin
+//				        target_page <= 9'd0 * 2048;
+//						  number[7:0] <= 3'd0;
+//				    end
+//				    8'b00010110: begin
+//				        target_page <= 9'd1 * 2048;
+//						  number[7:0] <= 3'd1;
+//				    end
+//				    8'b00011110: begin
+//				        target_page <= 9'd2 * 2048;
+//						  number[7:0] <= 3'd2;
+//				    end
+//				    8'b00100110: begin
+//				        target_page <= 9'd3 * 2048;
+//						  number[7:0] <= 3'd3;
+//				    end
+//					 default: begin
+//                end
+//			   endcase
+//        end
+//    end
+//end
 
 // LED
-assign leds[15:0] = number[15:0];
+assign leds[15:0] = {number[15:0], pause, start, clear};
 assign leds[31:16] = ~(dip_sw);
 
 // 图像输出演示，分辨率 800x600@75Hz，像素时钟为 50MHz，显示渐变色彩条
