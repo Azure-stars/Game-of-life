@@ -16,23 +16,35 @@ module vga
 #(parameter WIDTH = 0, HSIZE = 0, HFP = 0, HSP = 0, HMAX = 0, VSIZE = 0, VFP = 0, VSP = 0, VMAX = 0, HSPP = 0, VSPP = 0, P_PARAM_N = 0, P_PARAM_M = 0)
 (
     input wire clk,
-    input reg [P_PARAM_N * P_PARAM_M - 1: 0] status,   // 全局像素信息
-    output wire hsync,
+    input wire vga_live,                // vga读取的像素是否存活
+    output wire hsync,  
     output wire vsync,
-    output reg [WIDTH - 1:0] hdata, // 水平数据，WIDTH位
-    output reg [WIDTH - 1:0] vdata, // 垂直数据，WIDTH位
-    output reg [7: 0] video_red,   // 红色像素，8位
-    output reg [7: 0] video_green, // 绿色像素，8位
-    output reg [7: 0] video_blue,  // 蓝色像素，8位
+    output reg [2 * WIDTH - 1:0] pos,   // 当前读取的位置
+    output reg [7: 0] video_red,        // 红色像素，8位
+    output reg [7: 0] video_green,      // 绿色像素，8位 
+    output reg [7: 0] video_blue,       // 蓝色像素，8位
     output wire data_enable
 );
+
+reg[WIDTH - 1:0] hdata;
+reg[WIDTH - 1:0] vdata;
+// 当前一个像素大小为32
+reg [5:0] cnt;
+initial begin
+    cnt = 0;
+    hdata = 0;
+    vdata = 0;
+    pos = 0;
+    video_green = 0 ;
+    video_blue = 0;
+    video_red = 0;
+end
 
 // WIDTH与整个屏幕有关
 // HSIZE代表了可见域的宽度
 // HFP = HSIZE + FRONT_PROCH，其中FRONT_PROCH代表了图像右边的部分不可见区域的宽度
 // HSP = HFP + SYNC PULSE，其中SYNC_PULSE代表了同步信号区间，也是不可见的，
 // HMAX = HSP + BACK_PROCH，其中后沿代表了图像左边部分的不可见区域宽度  
-parameter PIXIV_SIZE = HSIZE / P_PARAM_N; // 每个像素的宽度
 // hdata
 always @ (posedge clk)
 begin
@@ -53,25 +65,37 @@ begin
             vdata <= vdata + 1;
     end
 end
+parameter PIXIV = HSIZE / P_PARAM_N;
+initial begin
+    cnt = 0;
+end
 
-always @ (posedge clk) begin
-    if(hdata < HSIZE && vdata < HSIZE) begin
-        if (hdata == 0 || hdata[4:0] == 5'b00000 || vdata == 0 || vdata[4:0] == 5'b00000) begin
-            // 像素边框为黑色
-            video_red <= 8'b00000000;
-            video_green <= 8'b00000000;
-            video_blue <= 8'b00000000;
-        end
-        else if (status[vdata / PIXIV_SIZE * P_PARAM_N + hdata / PIXIV_SIZE] == 0) begin
-            video_red   <= 8'b00000000;
-            video_green <= 8'b00000000;
+// pos
+always @ (posedge clk)
+begin
+    // if (pos == HMAX * VMAX - 1) begin
+    //     pos <= 0;
+    // end
+    // else begin
+    //     pos <= pos + 1;
+    // end
+    pos = (hdata / PIXIV) * P_PARAM_N + (vdata / PIXIV);
+end
+
+always @ (posedge clk)
+begin
+    if(hdata < HSIZE && vdata < VSIZE) begin
+        if (vga_live) begin
+            // 存活，为白色
+            video_red   <= 8'b11111111;
+            video_green <= 8'b11111111;
             video_blue  <= 8'b11111111;
         end
         else begin
             // 非黑即白
-            video_red   <= 8'b11111111;
-            video_green <= 8'b11111111;
-            video_blue  <= 8'b11111111;
+            video_red   <= 8'b00000000;
+            video_green <= 8'b00000000;
+            video_blue  <= 8'b00000000;
         end
     end
     else begin
