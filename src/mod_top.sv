@@ -105,26 +105,26 @@ reg sdc_write;
 reg [7:0] sdc_write_data;
 wire sdc_write_ready;
 
-sd_controller u_sd_controller (
-    .clk                (clk_spi),
-    .reset              (reset_btn),
-
-    .cs                 (sd_cs),
-    .mosi               (sd_mosi),
-    .miso               (sd_miso),
-    .sclk               (sd_sclk),
-
-    .address            (sdc_address),
-    .ready              (sdc_ready),
-
-    .rd                 (sdc_read),
-    .dout               (sdc_read_data),
-    .byte_available     (sdc_read_valid),
-
-    .wr                 (sdc_write),
-    .din                (sdc_write_data),
-    .ready_for_next_byte(sdc_write_ready)
-);
+//sd_controller u_sd_controller (
+//    .clk                (clk_spi),
+//    .reset              (reset_btn),
+//
+//    .cs                 (sd_cs),
+//    .mosi               (sd_mosi),
+//    .miso               (sd_miso),
+//    .sclk               (sd_sclk),
+//
+//    .address            (sdc_address),
+//    .ready              (sdc_ready),
+//
+//    .rd                 (sdc_read),
+//    .dout               (sdc_read_data),
+//    .byte_available     (sdc_read_valid),
+//
+//    .wr                 (sdc_write),
+//    .din                (sdc_write_data),
+//    .ready_for_next_byte(sdc_write_ready)
+//);
 // Demo
 reg [31:0] page_bias;
 reg [31:0] current_page;
@@ -149,71 +149,70 @@ localparam STATE_INIT = 2'd0;
 localparam STATE_READ = 2'd1;
 localparam STATE_FINISH = 2'd2;
 
-reg [7:0] mem [511:0];
-reg [8:0] write_byte;
-reg [8:0] read_byte;
+wire [7:0] mem [511:0];
+//reg [8:0] write_byte;
+reg [31:0] read_byte;
 
 reg [31: 0] counter;
+
+reg [31:0] block_id;
+wire execute;
+
+SDCardBlockReader sd_card_block_reader(
+    .clk_spi            (clk_spi),
+    .reset              (reset_btn),
+
+    .sd_cs              (sd_cs),
+    .sd_mosi            (sd_mosi),
+    .sd_miso            (sd_miso),
+    .sd_sclk            (sd_sclk),
+
+	 .block_id           (block_id),
+	 .execute            (execute),
+	 .data               (mem),
+	 .state_reg          (state_reg)
+);
+
 always @(posedge clk_spi or posedge reset_btn) begin
     if (reset_btn) begin
         counter <= 32'b0;
-        number[15:8] <= 8'b0;
+        number[31:8] <= 32'b0;
 
-		  current_page <= 32'b0;
-        sdc_address <= 32'b000000000000;
-        sdc_read <= 1'b0;
-        sdc_write <= 1'b0;
-        sdc_write_data <= 8'b0;
-
-        state_reg <= STATE_INIT;
-        write_byte <= 9'b0;
-        read_byte <= 9'b0;
+        read_byte <= 32'd0;
 		  
-		  page_bias <= 9'b0;
+		  block_id <= 32'b0;
+		  number[31:24] <= block_id;
+		  
     end else begin
-	     if (current_page == target_page) begin
-			  counter <= counter + 32'b1;
-			  if (counter == 32'd500_000) begin
-					counter <= 32'b0;
-					read_byte <= read_byte + 9'b1;
-					number[15:8] <= mem[read_byte];  // {number[15:8], mem[read_byte]};
-			  end
-
-			  casez(state_reg)
-					STATE_INIT: begin
-						 if (sdc_ready) begin
-							  sdc_read <= 1'b1;
-							  state_reg <= STATE_READ;
+		  casez(state_reg)
+				STATE_INIT: begin
+				  execute = 0;
+				  read_byte <= 32'd0;
+				end
+				STATE_READ: begin
+				  execute = 0;
+				  read_byte <= 32'd0;
+				end
+				STATE_FINISH: begin
+					 if (read_byte == 32'd512) begin
+						  read_byte <= 32'b0;
+						  block_id <= block_id + 32'd1;
+						  execute = 1;
+						  counter <= 32'b0;
+					 end else begin
+					    counter <= counter + 32'b1;
+						 if (counter == 32'd100_000) begin
+							counter <= 32'b0;
+							number[15:8] <= mem[{read_byte[31:2],2'b0}];
+							number[23:16] <= mem[read_byte];
+							read_byte <= read_byte + 32'b1;
 						 end
-					end
-					STATE_READ: begin
-						 sdc_read <= 1'b0;
-
-						 if (sdc_read_valid) begin
-							  mem[write_byte] <= sdc_read_data;
-							  write_byte <= write_byte + 9'b1;
-						 end
-						 if (write_byte == 9'd511) begin
-							  state_reg <= STATE_FINISH;
-						 end
-					end
-					default: begin
-					end
-			  endcase
-		  end else begin
-				counter <= 32'b0;
-				number[15:8] <= target_page;
-
-				current_page <= target_page;
-		      sdc_address <= target_page + page_bias;
-				sdc_read <= 1'b0;
-				sdc_write <= 1'b0;
-				sdc_write_data <= 8'b0;
-
-				state_reg <= STATE_INIT;
-				write_byte <= 9'b0;
-				read_byte <= 9'b0;
-		  end
+					 end
+				end
+				default: begin
+				end
+		  endcase
+		  number[31:24] <= block_id;
     end
 end
 
@@ -230,51 +229,11 @@ KeyBoardController keyboard_controller (
 	 .pause     (pause         ),
 	 .start     (start         ),
 	 .clear     (clear         ),
-	 .file_id   (number[7:0]   )
+	 .file_id   (number[3:0]   )
 );
 
-//keyboard u_keyboard (
-//    .clock     (clk_in        ),
-//    .reset     (reset_btn     ),
-//    .ps2_clock (ps2_clock     ),
-//    .ps2_data  (ps2_data      ),
-//    .scancode  (scancode      ),
-//    .valid     (scancode_valid)
-//);
-//
-//always @(posedge clk_in or posedge reset_btn) begin
-//    if (reset_btn) begin
-//        number[7:0] <= 8'b0;
-//		  target_page <= 9'd0 * 2048;
-//    end else begin
-//        if (scancode_valid) begin
-////            number[7:0] <= scancode;
-//            casez(scancode)
-//				    8'b01000101: begin
-//				        target_page <= 9'd0 * 2048;
-//						  number[7:0] <= 3'd0;
-//				    end
-//				    8'b00010110: begin
-//				        target_page <= 9'd1 * 2048;
-//						  number[7:0] <= 3'd1;
-//				    end
-//				    8'b00011110: begin
-//				        target_page <= 9'd2 * 2048;
-//						  number[7:0] <= 3'd2;
-//				    end
-//				    8'b00100110: begin
-//				        target_page <= 9'd3 * 2048;
-//						  number[7:0] <= 3'd3;
-//				    end
-//					 default: begin
-//                end
-//			   endcase
-//        end
-//    end
-//end
-
 // LED
-assign leds[15:0] = {number[15:0], pause, start, clear};
+assign leds[15:0] = {number[7:0], pause, start, clear};
 assign leds[31:16] = ~(dip_sw);
 
 // 图像输出演示，分辨率 800x600@75Hz，像素时钟为 50MHz，显示渐变色彩条

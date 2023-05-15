@@ -12,7 +12,8 @@ module SDCardBlockReader  // 读取编号为block_id的block中的数据(512 * 8
 
 	input  reg [31:0] block_id,
 	input  wire execute,
-	output reg [7:0] data [511:0]
+	output reg [7:0] data [511:0],
+	output reg [1:0] state_reg
 
 );
 
@@ -52,7 +53,6 @@ module SDCardBlockReader  // 读取编号为block_id的block中的数据(512 * 8
 		 .ready_for_next_byte(sdc_write_ready)
 	);
 
-	reg [1:0] state_reg;
    reg [8:0] write_byte;
 
 	always @(posedge clk_spi or posedge reset or posedge execute) begin
