@@ -7,18 +7,16 @@ module Round #(
 )
 (
     input wire clk,                 // 全局时钟
-    input wire global_evo_en,       // 演化标志，当上升沿到来时进行演化
+    input wire global_evo_en,       // 演化标志
     input wire prev_status,         // 演化时有效，代表这个round_read_pos在上一个周期的状态
     output reg rden,                // 演化时有效，代表需要读取
     output reg wden,                // 演化时有效，代表需要写入
     output reg[2*WIDTH - 1: 0] round_read_pos, // 演化时有效，代表当前演化需要读取的数的位置
     output reg[2*WIDTH - 1: 0] round_write_pos,// 演化时有效，代表演化需要写入的数的位置
-    output reg live,                // 演化时有效，代表当前位置下一个周期的状态
-    output reg copy_rden,           // 拷贝时有效，代表拷贝来源读使能
-    output reg copy_wden            // 拷贝时有效，代表拷贝目的写使能
+    output reg live                 // 演化时有效，代表当前位置下一个周期的状态
 );
 
-
+reg prev_global_evo_en = 1;
 reg [8:0] status;        
 // 当前位置及其周围的状态，若当前坐标为(i,j),status[0] = (i,j), status[1] = (i,j+1), status[2] = (i+1, j+1), 即顺时针旋转
 parameter P_INIT = 0;
@@ -31,118 +29,130 @@ parameter P_READ_STATE_5 = 6;
 parameter P_READ_STATE_6 = 7;
 parameter P_READ_STATE_7 = 8;
 parameter P_READ_STATE_8 = 9;
-parameter P_WRITE = 10;
-parameter P_COPY = 11;
+parameter P_CALC = 10;
+parameter P_WRITE = 11;
 parameter P_FINISH = 12;
-reg prev_global_evo_en;      // 上一个时钟的全局演化使能，利用这个将电平信号转化为时钟信号
-// reg evo_en;              // 局部开始演化的使能
+reg[3:0] last_read_state;       // 上一次读取到的位置
 reg[3:0] read_state;     // 用于RAM读取的状态
 reg[3:0] end_state;      // 结束读取位置，不包括自己
 reg[WIDTH - 1: 0] center_hdata;     // 当前输出的real_hdata坐标
 reg[WIDTH - 1: 0] center_vdata;     // 当前输出的real_vdata坐标
+reg[30:0] evo_cnt;              // 1Hz时钟的计数器
 initial begin
-    prev_global_evo_en = 0;
+    prev_global_evo_en = 1;
     status = 0;
-    // evo_en = 0;
     read_state = P_INIT;
     end_state = 0;
     center_hdata = 0;
     center_vdata = 0;
     round_read_pos = 0;
     round_write_pos = 0;
-    copy_rden = 0;
-    copy_wden = 0;
     rden = 0;
     wden = 0;
-    live = 0;
+    // live = 0;
+    evo_cnt = 0;
+    last_read_state = 0;
 end
 
 
-Evolution evo (
-    .status(status),
-    .live(live)
-);
+// Evolution evo (
+//     .status(status),
+//     .live(live)
+// );
 
-// 转化模块，将global_evo_en的电平信号转化为上升沿信号
+// assign live = prev_status;
+
 always @ (posedge clk) begin
-    prev_global_evo_en <= global_evo_en;
+    if (evo_cnt == 49999999) begin
+        evo_cnt <= 0;
+    end else begin
+        evo_cnt <= evo_cnt + 1;
+    end
 end
-
 
 // 读取模块
 always @ (posedge clk) begin
-    if (read_state <= P_READ_STATE_8 && read_state >= P_READ_STATE_0) begin
-        status[read_state - 1] <= prev_status; 
+    if (read_state >= P_READ_STATE_0 && read_state <= P_READ_STATE_8) begin
+        last_read_state <= read_state - 1;
+        // status[read_state - 1] <= prev_status;
+    end
+    if (read_state <= P_CALC && read_state >= P_READ_STATE_1) begin
+        status[last_read_state] <= prev_status; 
     end
     if (read_state == P_INIT) begin
         if (prev_global_evo_en != global_evo_en) begin
-            // global_evo_en变化到来
             // 初始化读取中心位置的值 
             // 此时的round_read_pos应当为0
+            prev_global_evo_en <= global_evo_en;
+            round_read_pos <= 1;
             rden <= 1;  // 进行读取
             read_state <= P_READ_STATE_0;
         end
-        else begin
+        else
+        begin
             read_state <= P_INIT;
         end
     end
     else if (read_state == P_READ_STATE_0) begin
         // 根据当前位置决定下一个读取位置与中止读取位置
-        if (center_hdata == 0) begin
-            // 第0列
-            if (center_vdata == 0) begin
-                // 第0行
-                round_read_pos <= round_read_pos + 1;
-                read_state <= P_READ_STATE_1;
-                end_state <= P_READ_STATE_3;
-            end
-            else if (center_vdata == P_PARAM_M - 1) begin
-                // 最后一行
-                round_read_pos <= round_read_pos - P_PARAM_N;
-                read_state <= P_READ_STATE_7;
-                end_state <= P_READ_STATE_1;
-            end
-            else begin
-                round_read_pos <= round_read_pos - P_PARAM_N;
-                read_state <= P_READ_STATE_7;
-                end_state <= P_READ_STATE_3;
-            end
-        end
-        else if (center_hdata == P_PARAM_N - 1) begin
-            if (center_vdata == 0) begin
-                round_read_pos <= round_read_pos + P_PARAM_N;
-                read_state <= P_READ_STATE_3;
-                end_state <= P_READ_STATE_5;
-            end
-            else if (center_vdata == P_PARAM_M - 1) begin
-                round_read_pos <= round_read_pos - 1;
-                read_state <= P_READ_STATE_5;
-                end_state <= P_READ_STATE_7;
-            end
-            else begin
-                round_read_pos <= round_read_pos + P_PARAM_N;
-                read_state <= P_READ_STATE_3;
-                end_state <= P_READ_STATE_7;
-            end
-        end
-        else begin
-            if (center_vdata == 0) begin
-                round_read_pos <= round_read_pos + 1;
-                read_state <= P_READ_STATE_1;
-                end_state <= P_READ_STATE_5;
-            end
-            else if (center_vdata == P_PARAM_M - 1) begin
-                round_read_pos <= round_read_pos - 1;
-                read_state <= P_READ_STATE_5;
-                end_state <= P_READ_STATE_1;
-            end
-            else begin
-                round_read_pos <= round_read_pos + 1;
-                read_state <= P_READ_STATE_1;
-                end_state <= P_READ_STATE_8;
-            end
-        end 
-        
+        // 根据时序因素，我们在进入到P_READ_STATE_0还没有读取到
+        // 会在下一个时钟到来才会读到
+        // round_read_pos = round_write_pos;
+        read_state <= P_CALC;
+        // if (center_hdata == 0) begin
+        //     // 第0列
+        //     if (center_vdata == 0) begin
+        //         // 第0行
+        //         round_read_pos <= round_read_pos + 1;
+        //         read_state <= P_READ_STATE_1;
+        //         end_state <= P_READ_STATE_3;
+        //     end
+        //     else if (center_vdata == P_PARAM_M - 1) begin
+        //         // 最后一行
+        //         round_read_pos <= round_read_pos - P_PARAM_N;
+        //         read_state <= P_READ_STATE_7;
+        //         end_state <= P_READ_STATE_1;
+        //     end
+        //     else begin
+        //         round_read_pos <= round_read_pos - P_PARAM_N;
+        //         read_state <= P_READ_STATE_7;
+        //         end_state <= P_READ_STATE_3;
+        //     end
+        // end
+        // else if (center_hdata == P_PARAM_N - 1) begin
+        //     if (center_vdata == 0) begin
+        //         round_read_pos <= round_read_pos + P_PARAM_N;
+        //         read_state <= P_READ_STATE_3;
+        //         end_state <= P_READ_STATE_5;
+        //     end
+        //     else if (center_vdata == P_PARAM_M - 1) begin
+        //         round_read_pos <= round_read_pos - 1;
+        //         read_state <= P_READ_STATE_5;
+        //         end_state <= P_READ_STATE_7;
+        //     end
+        //     else begin
+        //         round_read_pos <= round_read_pos + P_PARAM_N;
+        //         read_state <= P_READ_STATE_3;
+        //         end_state <= P_READ_STATE_7;
+        //     end
+        // end
+        // else begin
+        //     if (center_vdata == 0) begin
+        //         round_read_pos <= round_read_pos + 1;
+        //         read_state <= P_READ_STATE_1;
+        //         end_state <= P_READ_STATE_5;
+        //     end
+        //     else if (center_vdata == P_PARAM_M - 1) begin
+        //         round_read_pos <= round_read_pos - 1;
+        //         read_state <= P_READ_STATE_5;
+        //         end_state <= P_READ_STATE_1;
+        //     end
+        //     else begin
+        //         round_read_pos <= round_read_pos + 1;
+        //         read_state <= P_READ_STATE_1;
+        //         end_state <= P_READ_STATE_8;
+        //     end
+        // end 
     end 
     else if (read_state == P_READ_STATE_1 || read_state == P_READ_STATE_8) begin
         if (read_state == end_state) begin
@@ -150,8 +160,6 @@ always @ (posedge clk) begin
             rden <= 0;
             // 准备写入当前的结果到RAM2
             wden <= 1;
-            // 是否演化需要进行考虑，如果当前是global_evo_en上升沿到来的第一个读取周期，那么要进行演化，否则保持不变
-            // evo_en <= 1;
             read_state <= P_WRITE;     // 待读取完这个位置之后，读取完毕
         end
         else begin
@@ -168,11 +176,9 @@ always @ (posedge clk) begin
     end
     else if (read_state == P_READ_STATE_2 || read_state == P_READ_STATE_3) begin
         if (read_state == end_state) begin
-            // 读取完毕
             rden <= 0;
             // 准备写入当前的结果到RAM2
             wden <= 1;
-            // evo_en <= 1;
             read_state <= P_WRITE;     // 待读取完这个位置之后，读取完毕
         end
         else begin
@@ -193,7 +199,6 @@ always @ (posedge clk) begin
             rden <= 0;
             // 准备写入当前的结果到RAM2
             wden <= 1;
-            // evo_en <= 1;
             read_state <= P_WRITE;     // 待读取完这个位置之后，读取完毕
         end
         else begin
@@ -214,7 +219,6 @@ always @ (posedge clk) begin
             rden <= 0;
             // 准备写入当前的结果到RAM2
             wden <= 1;
-            // evo_en <= 1;
             read_state <= P_WRITE;     // 待读取完这个位置之后，读取完毕
         end
         else begin
@@ -229,23 +233,31 @@ always @ (posedge clk) begin
             // 由于保证了可以读取到P_READ_STATE_1,因此不会越界
         end
     end  
+    else if (read_state == P_CALC) begin
+        // 到达这个状态时，所有读取完毕
+        wden <= 1; 
+        rden <= 0;
+
+        round_read_pos <= round_write_pos + 1;
+        live <= prev_status;
+        read_state <= P_WRITE;
+    end
     else if (read_state == P_WRITE) begin
-        // 到达这个状态时已经写入完毕
-        // 清空当前的状态，为下一轮迭代做准备
         wden <= 0;
-        // evo_en <= 0;
+        read_state <= P_FINISH;
+    end
+    else begin
+        // P_FINISH
         if (center_hdata == P_PARAM_N - 1) begin
-            if (center_vdata == P_PARAM_M - 1) begin
+            if (center_vdata == 1) begin
                 center_vdata <= 0;
-                copy_rden <= 1;
-                copy_wden <= 1;
                 round_read_pos <= 0;
                 round_write_pos <= 0;
-                read_state <= P_COPY;
+                read_state <= P_INIT;
             end
             else begin
-                round_read_pos <= round_read_pos + 1;
-                round_write_pos <= round_write_pos + 1;
+                // 此时的read_pos并不在最开始的中心，需要将其和read_pos进行同步
+                round_write_pos <= round_read_pos;
                 center_vdata <= center_vdata + 1;
                 rden <= 1;
                 read_state <= P_READ_STATE_0;
@@ -253,34 +265,14 @@ always @ (posedge clk) begin
             center_hdata <= 0;
         end
         else begin
-            round_read_pos <= round_read_pos + 1;
-            round_write_pos <= round_write_pos + 1;
+            round_write_pos <= round_read_pos;
             center_hdata <= center_hdata + 1;
             rden <= 1;
             read_state <= P_READ_STATE_0;
         end
+        // 下一个时钟周期才会清零，不会影响当前的周期
         status[8:1] <= 0;
     end
-    else if(read_state == P_COPY) begin
-        round_read_pos <= round_write_pos;
-        if (round_write_pos != P_PARAM_N * P_PARAM_M - 1) begin
-            // 注意：此时copy_wround_read_pos应当比copy_rround_read_pos晚一个周期
-            round_write_pos <= + 1;
-            read_state <= P_COPY;
-        end
-        else begin
-            read_state <= P_FINISH;
-        end
-    end
-    else begin
-        // P_FINISH
-        copy_rden <= 0;
-        copy_wden <= 0;
-        round_read_pos <= 0;
-        round_write_pos <= 0;
-        read_state <= P_INIT;
-    end
 end
-
 
 endmodule

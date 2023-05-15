@@ -29,12 +29,12 @@ module vga
 reg[WIDTH - 1:0] hdata;
 reg[WIDTH - 1:0] vdata;
 // 当前一个像素大小为32
-reg [5:0] cnt;
+parameter PIXIV = HSIZE / P_PARAM_N;
+
 initial begin
-    cnt = 0;
     hdata = 0;
     vdata = 0;
-    pos = 0;
+    pos = 1 / PIXIV;
     video_green = 0 ;
     video_blue = 0;
     video_red = 0;
@@ -65,21 +65,40 @@ begin
             vdata <= vdata + 1;
     end
 end
-parameter PIXIV = HSIZE / P_PARAM_N;
-initial begin
-    cnt = 0;
-end
 
 // pos
 always @ (posedge clk)
 begin
-    // if (pos == HMAX * VMAX - 1) begin
-    //     pos <= 0;
-    // end
-    // else begin
-    //     pos <= pos + 1;
-    // end
-    pos = (hdata / PIXIV) * P_PARAM_N + (vdata / PIXIV);
+    if (hdata == HMAX - 2) begin
+        if (vdata == VMAX - 1) begin
+            pos <= 0;
+        end
+        else if (vdata < VSIZE - 1) begin
+            pos <= ((vdata + 1) / PIXIV) * P_PARAM_N;
+        end
+        else begin
+            pos <= 0;
+        end
+    end
+    else if (hdata == HMAX - 1) begin
+        if (vdata == VMAX - 1) begin
+            pos <= (1 / PIXIV);
+        end
+        else if (vdata < VSIZE - 1) begin
+            pos <= ((vdata + 1) / PIXIV) * P_PARAM_N + 1 / PIXIV;
+        end
+        else begin
+            pos <= 0;
+        end
+    end
+    else begin
+        if (hdata < HSIZE - 1) begin
+            pos <= ((hdata + 2) / PIXIV) + (vdata / PIXIV) * P_PARAM_N;
+        end
+        else begin
+            pos <= 0;
+        end
+    end
 end
 
 always @ (posedge clk)

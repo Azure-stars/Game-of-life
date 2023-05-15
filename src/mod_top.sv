@@ -21,13 +21,13 @@ ip_pll u_ip_pll(
 reg[7:0] output_video_red;      // 输出的像素颜色
 reg[7:0] output_video_blue;     // 输出的像素颜色
 reg[7:0] output_video_green;    // 输出的像素颜色
-reg[25:0] evo_cnt;              // 1Hz时钟的计数器
-wire[2:0] ram_read_data;         // ram读取的数据
-wire[2:0] ram_write_data;        // ram写入的数据
-wire[2:0][23:0] ram_pos;         // ram的读写位置
+reg[30:0] evo_cnt;              // 1Hz时钟的计数器
+wire[3:0] ram_read_data;         // ram读取的数据
+wire[3:0] ram_write_data;        // ram写入的数据
+wire[3:0][23:0] ram_pos;         // ram的读写位置
 reg clk_evo;                    // 1Hz时钟
-wire [2:0] ram_rden;             // ram的读取使能
-wire [2:0] ram_wden;             // ram的写入使能
+wire [3:0] ram_rden;             // ram的读取使能
+wire [3:0] ram_wden;             // ram的写入使能
 wire vga_read_val;               // vga当前读取的值
 wire [23:0] vga_pos;                   // vga当前读取的位置
 wire round_rden;                // round读使能
@@ -36,11 +36,6 @@ wire [23:0]round_read_pos;                 // round当前读取的位置
 wire [23:0]round_write_pos;                // round当前写入的位置
 wire round_read_val;             // round当前读取的值
 wire round_write_val;            // round当前即将写入的值，即某一个像素的演化后的状态
-wire copy_rden;                 // copy时使用的读使能
-wire copy_wden;                 // copy时使用的写使能       
-wire copy_rpos;                 // copy时使用的读位置
-wire copy_wpos;                 // copy时使用的写位置
-
 parameter P_PARAM_N = 40;
 parameter P_PARAM_M = 30;
 initial begin
@@ -50,7 +45,11 @@ end
 
 always @ (posedge clk_vga) begin
     if (evo_cnt == 49999999) begin
-        clk_evo <= ~clk_evo;
+        if (clk_evo == 0) begin
+            clk_evo <= 1;
+        end else begin
+            clk_evo <= 0;
+        end
         evo_cnt <= 0;
     end else begin
         evo_cnt <= evo_cnt + 1;
@@ -62,6 +61,7 @@ end
 // 第二个RAM用于演化模块的暂存模块
 // 第三个RAM用于vga模块的显示模块
 
+// clk_evo为高电平时的演化模块
 RAM_1_524288 ram1(
     .address(ram_pos[0]),
     .clock(clk_vga),
@@ -71,7 +71,8 @@ RAM_1_524288 ram1(
     .data(ram_write_data[0])
 );
 
-RAM2_1_524288 ram_2(
+// clk_evo为高电平时的读取模块
+RAM_1_524288 ram_2(
     .address(ram_pos[1]),
     .clock(clk_vga),
     .wren(ram_wden[1]),
@@ -80,13 +81,24 @@ RAM2_1_524288 ram_2(
     .data(ram_write_data[1])
 );
 
-RAM_TEMP_1_524288 ram_temp(
+// clk_evo为低电平时的演化模块
+RAM_1_524288 ram_3(
     .address(ram_pos[2]),
     .clock(clk_vga),
     .wren(ram_wden[2]),
     .rden(ram_rden[2]),
     .q(ram_read_data[2]),
     .data(ram_write_data[2])
+);
+
+// clk_evo为低电平时的读取模块
+RAM_1_524288 ram_4(
+    .address(ram_pos[3]),
+    .clock(clk_vga),
+    .wren(ram_wden[3]),
+    .rden(ram_rden[3]),
+    .q(ram_read_data[3]),
+    .data(ram_write_data[3])
 );
 
 Round #(P_PARAM_M, P_PARAM_N, 12) round (
@@ -97,9 +109,7 @@ Round #(P_PARAM_M, P_PARAM_N, 12) round (
     .wden(round_wden),
     .round_read_pos(round_read_pos),
     .round_write_pos(round_write_pos),
-    .live(round_write_val),             // 仅在写使能为高时有效
-    .copy_rden(copy_rden),
-    .copy_wden(copy_wden)
+    .live(round_write_val)              // 仅在写使能为高时有效
 );
 
 assign video_clk = clk_vga;
@@ -116,25 +126,34 @@ vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1, P_PARAM_N, P_PARAM_M) v
 );
 
 // RAM读写使能变化
-assign ram_rden[2] = copy_rden;
-assign ram_wden[2] = round_wden;
-assign ram_rden[0] = clk_evo ? round_rden : 1;
-assign ram_wden[0] = clk_evo ? copy_wden : 0;
-assign ram_rden[1] = clk_evo ? 1 : round_rden;
-assign ram_wden[1] = clk_evo ? 0 : copy_wden;
+
+// 高电平演化
+assign ram_rden[0] = (clk_evo == 1) ? round_rden : 0;
+assign ram_wden[0] = (clk_evo == 1) ? 0 : round_wden;
+// 高电平读取
+assign ram_rden[1] = (clk_evo == 1) ? 1 : 0;
+assign ram_wden[1] = (clk_evo == 1) ? 0 : round_wden;
+
+// 低电平演化
+assign ram_rden[2] = (clk_evo == 1) ? 0 : round_rden;
+assign ram_wden[2] = (clk_evo == 1) ? round_wden : 0;
+// 低电平读取
+assign ram_rden[3] = (clk_evo == 1) ? 0 : 1;
+assign ram_wden[3] = (clk_evo == 1) ? round_wden : 0;
 
 // RAM读写数据变化
-assign round_read_val = clk_evo ? ram_read_data[0] : ram_read_data[1];
-assign vga_read_val = clk_evo ? ram_read_data[1] : ram_read_data[0];
-assign ram_write_data[0] = clk_evo ? ram_read_data[2] : 0;
-assign ram_write_data[1] = clk_evo ? 0 : ram_read_data[2];
+assign round_read_val = (clk_evo == 1) ? ram_read_data[0] : ram_read_data[2];
+assign vga_read_val = (clk_evo == 1) ? ram_read_data[1] : ram_read_data[3];
+assign ram_write_data[0] = round_write_val;
+assign ram_write_data[1] = round_write_val;
 assign ram_write_data[2] = round_write_val;
+assign ram_write_data[3] = round_write_val;
 
 // RAM地址变化
-assign ram_pos[0] = clk_evo ? round_read_pos : vga_pos;
-assign ram_pos[1] = clk_evo ? vga_pos : round_read_pos;    
-assign ram_pos[2] = round_write_pos;
-
+assign ram_pos[0] = (clk_evo == 1) ? round_read_pos : round_write_pos;
+assign ram_pos[1] = (clk_evo == 1) ? vga_pos : round_write_pos;
+assign ram_pos[2] = (clk_evo == 1) ? round_write_pos : round_read_pos;
+assign ram_pos[3] = (clk_evo == 1) ? round_write_pos : vga_pos;
 always_comb begin
     // 为了保证三者同时变化
     video_blue = output_video_blue;
