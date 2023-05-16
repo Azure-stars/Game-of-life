@@ -150,13 +150,17 @@ localparam STATE_READ = 2'd1;
 localparam STATE_FINISH = 2'd2;
 
 wire [7:0] mem [511:0];
-//reg [8:0] write_byte;
 reg [31:0] read_byte;
+reg [31:0] block_id;
 
 reg [31: 0] counter;
 
-reg [31:0] block_id;
 wire execute;
+
+//reg read_block_finish;
+reg read_file_finish;
+reg [31:0] write_bit;
+reg [2:0] bit_counter;
 
 SDCardBlockReader sd_card_block_reader(
     .clk_spi            (clk_spi),
@@ -173,8 +177,27 @@ SDCardBlockReader sd_card_block_reader(
 	 .state_reg          (state_reg)
 );
 
+reg [23:0] address;
+wire write_data;
+wire rden;
+wire wren;
+wire read_data;
+
+ram_1_786432 test_ram(
+.address (address),
+.clock   (clk_spi),
+.data    (write_data),
+.rden    (rden),
+.wren    (wren),
+.q       (read_data)
+);
+
 always @(posedge clk_spi or posedge reset_btn) begin
     if (reset_btn) begin
+	     rden <= 0;
+		  wren <= 0;
+		  address <=0;
+		  
         counter <= 32'b0;
         number[31:8] <= 32'b0;
 
@@ -182,37 +205,95 @@ always @(posedge clk_spi or posedge reset_btn) begin
 		  
 		  block_id <= 32'b0;
 		  number[31:24] <= block_id;
-		  
+
+//		  read_block_finish <= 0;
+		  read_file_finish <= 0;
+//		  write_bit <= 32'b11111111111111111111111111111111;
+		  write_bit <= 32'b0;
+		  address <= 32'b11111111111111111111111111111111;
+		  execute <= 0;
+		  bit_counter <= 3'b0;
+
     end else begin
-		  casez(state_reg)
-				STATE_INIT: begin
-				  execute = 0;
-				  read_byte <= 32'd0;
-				end
-				STATE_READ: begin
-				  execute = 0;
-				  read_byte <= 32'd0;
-				end
-				STATE_FINISH: begin
-					 if (read_byte == 32'd512) begin
-						  read_byte <= 32'b0;
-						  block_id <= block_id + 32'd1;
-						  execute = 1;
-						  counter <= 32'b0;
-					 end else begin
-					    counter <= counter + 32'b1;
-						 if (counter == 32'd100_000) begin
+		  if (read_file_finish == 1) begin
+		      if (wren == 1) begin
+		          wren <= 0;
+			   end else begin
+					if (rden == 0) begin
+		            address <= 32'b0;
+						rden <= 1;
+					end else begin
+						 counter <= counter + 32'b1;
+						 
+						 if (counter == 32'd125_000) begin
+						   number[15:8] <= {read_data, number[15:9]};
+							address <= address + 32'b1;
 							counter <= 32'b0;
-							number[15:8] <= mem[{read_byte[31:2],2'b0}];
-							number[23:16] <= mem[read_byte];
-							read_byte <= read_byte + 32'b1;
+							bit_counter <= bit_counter + 3'b1;
 						 end
-					 end
+						 if (bit_counter == 3'b0) begin
+//							number[15:8] <= mem[{read_byte[31:2],2'b0}];
+//							number[23:16] <= mem[read_byte];
+//							read_byte <= read_byte + 32'b1;
+							number[23:16] <= number[15:8];
+						 end
+					end
 				end
-				default: begin
-				end
-		  endcase
-		  number[31:24] <= block_id;
+		  end else begin
+			  casez(state_reg)
+					STATE_INIT: begin
+					  execute = 0;
+					  read_byte <= 32'd0;
+					end
+					STATE_READ: begin
+					  execute = 0;
+					  read_byte <= 32'd0;
+					end
+					STATE_FINISH: begin
+					   if (execute == 0) begin
+							if (wren == 1) begin
+								write_data <= mem[{write_bit[11:3]}][write_bit[2:0]];
+								write_bit <= write_bit + 32'b1;
+								address <= address + 32'b1;
+								if (write_bit[12:0] == 32'd4096) begin
+									wren <= 0;
+									execute <= 1;
+									if (block_id == 32'd9) begin
+										 read_file_finish <= 1;
+									end
+									block_id <= block_id + 32'd1;
+								end
+							 end else begin
+								  wren <= 1;
+							 end
+						 end
+//						 if (read_byte == 32'd512) begin
+//							  if (block_id == 32'd9) begin
+//									read_file_finish <= 1;
+//							  end
+//							  read_block_finish <= 1;
+//				           wren <= 1;
+//
+////							  execute <= 1;
+//							  read_byte <= 32'b0;
+//							  block_id <= block_id + 32'd1;
+//							  counter <= 32'b0;
+//						 end else begin
+//							 counter <= counter + 32'b1;
+//							 if (counter == 32'd100_000) begin
+//								counter <= 32'b0;
+//								number[15:8] <= mem[{read_byte[31:2],2'b0}];
+//								number[23:16] <= mem[read_byte];
+//								read_byte <= read_byte + 32'b1;
+//								address <= address + 1;
+//							 end
+//						 end
+					end
+					default: begin
+					end
+			  endcase
+			  number[31:24] <= block_id;
+		  end
     end
 end
 
