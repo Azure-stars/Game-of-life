@@ -202,9 +202,9 @@ ram_1_786432 test_ram(
 .q       (read_data)
 );
 
-//wire [15:0] file_id;
-reg [15:0] file_id; 
-assign number[3:0] = file_id[3:0];
+reg [15:0] file_id;
+//reg [15:0] file_id; 
+//assign number[7:0] = file_id[7:0];
 reg read_file_finish;
 
 SDCardReader sd_card_reader(
@@ -233,16 +233,14 @@ always @(posedge clk_spi or posedge reset_btn) begin
         counter <= 32'b0;
         number[31:8] <= 32'b0;
 
-        read_byte <= 32'd0;
+        // read_byte <= 32'd0;
 		  
-		  block_id <= 32'b0;
-		  number[31:24] <= block_id;
+		  // block_id <= 32'b0;
+		  // number[31:24] <= block_id;
 
 	     rden_list[0] <= 0;
 		  wren_list[0] <= 0;
-//		  write_bit <= 32'b0;
 		  address_list[0] <= 32'b0;
-//		  execute <= 0;
 		  bit_counter <= 3'b0;
 
     end else begin
@@ -265,16 +263,22 @@ always @(posedge clk_spi or posedge reset_btn) begin
 						 if (bit_counter == 3'b0) begin
 							number[23:16] <= number[15:8];
 						 end
-						 number[31:24] <= bit_counter;
+							number[31:24] <= bit_counter;
 					end
 				end
+		  end else begin
+			  // rden_list[0] <= 0;
+			  // wren_list[0] <= 0;
+			  address_list[0] <= 32'b0;
+			  bit_counter <= 3'b0;
+			  counter <= 32'b0;
 		  end
     end
 end
 
 wire pause;
 wire start;
-wire clear; 
+wire clear;
 
 KeyBoardController keyboard_controller (
     .clk_in    (clk_in        ),
@@ -284,11 +288,13 @@ KeyBoardController keyboard_controller (
 	 .pause     (pause         ),
 	 .start     (start         ),
 	 .clear     (clear         ),
-	 .file_id   (file_id[3:0]  )
+	 .file_id   (file_id       )
 );
 
+assign number[7:0] = file_id[7:0];
+
 // LED
-assign leds[15:0] = {number[7:0], pause, start, clear, read_file_finish};
+assign leds[15:0] = {file_id[7:0], 4'b0, pause, start, clear, read_file_finish};
 assign leds[31:16] = ~(dip_sw);
 
 // 图像输出演示，分辨率 800x600@75Hz，像素时钟为 50MHz，显示渐变色彩条
