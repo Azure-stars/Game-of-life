@@ -7,12 +7,12 @@ module KeyBoardController
 	 output wire pause,
 	 output wire start,
 	 output wire clear,
-	 output reg [7:0] file_id
+	 output reg [15:0] file_id
 );
 	
 	wire [7:0] scancode;  // PS2
 	wire scancode_valid;  // PS2
-	wire [7:0] target_file_id;
+	wire [15:0] target_file_id;
 	wire [15:0] counter;
 	reg running;
 	
