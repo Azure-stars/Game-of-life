@@ -30,11 +30,10 @@ reg[WIDTH - 1:0] hdata;
 reg[WIDTH - 1:0] vdata;
 // 当前一个像素大小为32
 parameter PIXIV = HSIZE / P_PARAM_N;
-
+parameter ALL_COL = HMAX / PIXIV;
 initial begin
     hdata = 0;
     vdata = 0;
-    pos = 1 / PIXIV;
     video_green = 0 ;
     video_blue = 0;
     video_red = 0;
@@ -66,41 +65,21 @@ begin
     end
 end
 
-// pos
-always @ (posedge clk)
-begin
-    if (hdata == HMAX - 2) begin
-        if (vdata == VMAX - 1) begin
-            pos <= 0;
-        end
-        else if (vdata < VSIZE - 1) begin
-            pos <= ((vdata + 1) / PIXIV) * P_PARAM_N;
-        end
-        else begin
-            pos <= 0;
-        end
-    end
-    else if (hdata == HMAX - 1) begin
-        if (vdata == VMAX - 1) begin
-            pos <= (1 / PIXIV);
-        end
-        else if (vdata < VSIZE - 1) begin
-            pos <= ((vdata + 1) / PIXIV) * P_PARAM_N + 1 / PIXIV;
-        end
-        else begin
-            pos <= 0;
-        end
-    end
-    else begin
-        if (hdata < HSIZE - 1) begin
-            pos <= ((hdata + 2) / PIXIV) + (vdata / PIXIV) * P_PARAM_N;
-        end
-        else begin
-            pos <= 0;
-        end
-    end
+initial begin
+    pos = 0;
 end
-
+always @ (posedge clk) begin
+    pos <= vdata[WIDTH - 1: 1] * P_PARAM_N + hdata[WIDTH - 1: 1];
+end
+// always @ (posedge clk)
+// begin
+//     if (hdata < HSIZE - 1) begin
+//         pos <= ((hdata + 2) / PIXIV) + (vdata / PIXIV) * P_PARAM_N;
+//     end
+//     else begin
+//         pos <= 0;
+//     end
+// end
 always @ (posedge clk)
 begin
     if(hdata < HSIZE && vdata < VSIZE) begin

@@ -22,22 +22,21 @@ reg[7:0] output_video_red;      // 输出的像素颜色
 reg[7:0] output_video_blue;     // 输出的像素颜色
 reg[7:0] output_video_green;    // 输出的像素颜色
 reg[30:0] evo_cnt;              // 1Hz时钟的计数器
-wire[3:0] ram_read_data;         // ram读取的数据
+reg[3:0] ram_read_data;         // ram读取的数据
 wire[3:0] ram_write_data;        // ram写入的数据
 wire[3:0][23:0] ram_pos;         // ram的读写位置
 reg clk_evo;                    // 1Hz时钟
 wire [3:0] ram_rden;             // ram的读取使能
 wire [3:0] ram_wden;             // ram的写入使能
 wire vga_read_val;               // vga当前读取的值
-wire [23:0] vga_pos;                   // vga当前读取的位置
-wire round_rden;                // round读使能
+reg [23:0] vga_pos;                   // vga当前读取的位置
 wire round_wden;                // round写使能
 wire [23:0]round_read_pos;                 // round当前读取的位置
 wire [23:0]round_write_pos;                // round当前写入的位置
 wire round_read_val;             // round当前读取的值
-wire round_write_val;            // round当前即将写入的值，即某一个像素的演化后的状态
-parameter P_PARAM_N = 40;
-parameter P_PARAM_M = 30;
+reg round_write_val;            // round当前即将写入的值，即某一个像素的演化后的状态
+parameter P_PARAM_N = 400;
+parameter P_PARAM_M = 300;
 initial begin
     evo_cnt = 0;
     clk_evo = 0;
@@ -105,7 +104,6 @@ Round #(P_PARAM_M, P_PARAM_N, 12) round (
     .clk(clk_vga),
     .global_evo_en(clk_evo),
     .prev_status(round_read_val),
-    .rden(round_rden),
     .wden(round_wden),
     .round_read_pos(round_read_pos),
     .round_write_pos(round_write_pos),
@@ -128,14 +126,14 @@ vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1, P_PARAM_N, P_PARAM_M) v
 // RAM读写使能变化
 
 // 高电平演化
-assign ram_rden[0] = (clk_evo == 1) ? round_rden : 0;
+assign ram_rden[0] = (clk_evo == 1) ? 1 : 0;
 assign ram_wden[0] = (clk_evo == 1) ? 0 : round_wden;
 // 高电平读取
 assign ram_rden[1] = (clk_evo == 1) ? 1 : 0;
 assign ram_wden[1] = (clk_evo == 1) ? 0 : round_wden;
 
 // 低电平演化
-assign ram_rden[2] = (clk_evo == 1) ? 0 : round_rden;
+assign ram_rden[2] = (clk_evo == 1) ? 0 : 1;
 assign ram_wden[2] = (clk_evo == 1) ? round_wden : 0;
 // 低电平读取
 assign ram_rden[3] = (clk_evo == 1) ? 0 : 1;
@@ -159,6 +157,6 @@ always_comb begin
     video_blue = output_video_blue;
     video_red = output_video_red;
     video_green = output_video_green;
-end
+end 
 
 endmodule
