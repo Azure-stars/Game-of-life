@@ -1,5 +1,5 @@
 module SDCardReader
-#(parameter P_PARAM_W = 800, P_PARAM_H = 600, FILE_BLOCK=128)
+#(parameter P_PARAM_W = 800, P_PARAM_H = 600, FILE_BLOCK = 7'b0)
 (
     input  wire clk_spi,
 	 input  wire reset,
@@ -25,11 +25,10 @@ module SDCardReader
 
 	reg [15:0] current_file_id;
 	reg [31:0] block_id;
+	// reg [31:0] target_block_id;
 	wire [7:0] mem [511:0];
 	wire execute;
 	reg [1:0] state_reg;
-	
-	// reg [31:0] read_byte;
 
 
 	reg [31:0] write_bit;
@@ -49,27 +48,12 @@ module SDCardReader
 		 .state_reg          (state_reg)
 	);
 
-//	reg [23:0] address;
-//	wire write_data;
-//	wire rden;
-//	wire wren;
-//	wire read_data;
-
-//	ram_1_786432 test_ram(
-//		.address (address),
-//		.clock   (clk_spi),
-//		.data    (write_data),
-//		.rden    (rden),
-//		.wren    (wren),
-//		.q       (read_data)
-//	);
-
 	always @(posedge clk_spi or posedge reset) begin
 		if (reset) begin
-			// read_byte <= 32'd0;
 			current_file_id <= file_id;
-  			block_id <= file_id * FILE_BLOCK;
-			// block_id <= 0;
+  			block_id <= {32'b0, file_id, 7'b0};
+			// target_block_id <= {32'b0, file_id + 16'd1, 7'b0};
+  			// block_id <= 32'b0;
 
 			rden <= 0;
 			wren <= 0;
@@ -82,11 +66,9 @@ module SDCardReader
 			  casez(state_reg)
 					STATE_INIT: begin
 					  execute = 0;
-					  // read_byte <= 32'd0;
 					end
 					STATE_READ: begin
 					  execute = 0;
-					  // read_byte <= 32'd0;
 					end
 					STATE_FINISH: begin
 						if (execute == 0) begin
@@ -98,9 +80,15 @@ module SDCardReader
 									wren <= 0;
 									execute <= 1;
 									block_id <= block_id + 32'd1;
-									if (block_id == (file_id + 1) * FILE_BLOCK) begin
+									//if (block_id == 32'd1) begin
+									//	 read_file_finish <= 1;
+									//end
+									if (block_id[6:0] == 7'd127) begin
 										 read_file_finish <= 1;
 									end
+									//if (block_id == target_block_id) begin
+									//	 read_file_finish <= 1;
+									//end
 								end
 							 end else begin
 								  wren <= 1;
@@ -109,7 +97,6 @@ module SDCardReader
 					end
 					default: begin
 					  execute = 0;
-					  // read_byte <= 32'd0;
 					end
 			  endcase
 			end else begin
@@ -117,10 +104,12 @@ module SDCardReader
 				end else begin
 					current_file_id <= file_id;
 					read_file_finish <= 0;
-					block_id <= file_id * FILE_BLOCK;
+					block_id <= {32'b0, file_id, 7'b0};
+					// target_block_id <= {32'b0, file_id + 16'd1, 7'b0};
+					// block_id <= 32'b0;
 					rden <= 0;
 					wren <= 0;
-					// read_byte <= 32'd0;
+
 					write_bit <= 32'b0;
 			      address <= 32'b11111111111111111111111111111111;
 					execute <= 0;

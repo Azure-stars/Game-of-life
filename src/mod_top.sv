@@ -93,43 +93,6 @@ ip_pll u_ip_pll(
     .c2     (clk_spi )   // 5MHz SPI SDcard 时钟
 );
 
-// SD 卡
-reg [31:0] sdc_address;
-wire sdc_ready;
-
-reg sdc_read;
-wire [7:0] sdc_read_data;
-wire sdc_read_valid;
-
-reg sdc_write;
-reg [7:0] sdc_write_data;
-wire sdc_write_ready;
-
-//sd_controller u_sd_controller (
-//    .clk                (clk_spi),
-//    .reset              (reset_btn),
-//
-//    .cs                 (sd_cs),
-//    .mosi               (sd_mosi),
-//    .miso               (sd_miso),
-//    .sclk               (sd_sclk),
-//
-//    .address            (sdc_address),
-//    .ready              (sdc_ready),
-//
-//    .rd                 (sdc_read),
-//    .dout               (sdc_read_data),
-//    .byte_available     (sdc_read_valid),
-//
-//    .wr                 (sdc_write),
-//    .din                (sdc_write_data),
-//    .ready_for_next_byte(sdc_write_ready)
-//);
-// Demo
-reg [31:0] page_bias;
-reg [31:0] current_page;
-reg [31:0] target_page;
-
 
 // 七段数码管扫描演示
 reg [31: 0] number;
@@ -149,47 +112,22 @@ localparam STATE_INIT = 2'd0;
 localparam STATE_READ = 2'd1;
 localparam STATE_FINISH = 2'd2;
 
-wire [7:0] mem [511:0];
-reg [31:0] read_byte;
-reg [31:0] block_id;
-
 reg [31: 0] counter;
-
-//wire execute;
-
-//reg read_block_finish;
-//reg read_file_finish;
-//reg [31:0] write_bit;
 reg [2:0] bit_counter;
-
-//SDCardBlockReader sd_card_block_reader(
-//    .clk_spi            (clk_spi),
-//    .reset              (reset_btn),
-//
-//    .sd_cs              (sd_cs),
-//    .sd_mosi            (sd_mosi),
-//    .sd_miso            (sd_miso),
-//    .sd_sclk            (sd_sclk),
-//
-//	 .block_id           (block_id),
-//	 .execute            (execute),
-//	 .data               (mem),
-//	 .state_reg          (state_reg)
-//);
-
 
 wire [23:0] address_list[2:0];
 wire rden_list[2:0];
 wire wren_list[2:0];
 
 reg [23:0] address;
-assign address = (read_file_finish == 1) ? address_list[0] : address_list[1]; 
 wire write_data;
 wire rden;
-assign rden = (read_file_finish == 1) ? rden_list[0] : rden_list[1]; 
 wire wren;
-assign wren = (read_file_finish == 1) ? wren_list[0] : wren_list[1]; 
 wire read_data;
+
+assign address = (read_file_finish == 1) ? address_list[0] : address_list[1];
+assign rden = (read_file_finish == 1) ? rden_list[0] : rden_list[1];
+assign wren = (read_file_finish == 1) ? wren_list[0] : wren_list[1];
 
 wire [23:0] write_address;
 
@@ -203,9 +141,8 @@ ram_1_786432 test_ram(
 );
 
 reg [15:0] file_id;
-//reg [15:0] file_id; 
-//assign number[7:0] = file_id[7:0];
-reg read_file_finish;
+assign number[7:0] = file_id[7:0];
+wire read_file_finish;
 
 SDCardReader sd_card_reader(
 	.clk_spi            (clk_spi),
@@ -230,17 +167,12 @@ SDCardReader sd_card_reader(
 always @(posedge clk_spi or posedge reset_btn) begin
     if (reset_btn) begin
 		  
-        counter <= 32'b0;
-        number[31:8] <= 32'b0;
-
-        // read_byte <= 32'd0;
-		  
-		  // block_id <= 32'b0;
-		  // number[31:24] <= block_id;
+        counter <= 32'd0;
+        number[31:8] <= 32'd0;
 
 	     rden_list[0] <= 0;
 		  wren_list[0] <= 0;
-		  address_list[0] <= 32'b0;
+		  address_list[0] <= 32'd0;
 		  bit_counter <= 3'b0;
 
     end else begin
@@ -249,15 +181,15 @@ always @(posedge clk_spi or posedge reset_btn) begin
 		          wren_list[0] <= 0;
 			   end else begin
 					if (rden_list[0] == 0) begin
-		            address_list[0] <= 32'b0;
+		            address_list[0] <= 32'd0;
 						rden_list[0] <= 1;
 					end else begin
-						 counter <= counter + 32'b1;
+						 counter <= counter + 32'd1;
 						 
 						 if (counter == 32'd125_000) begin
 						   number[15:8] <= {read_data, number[15:9]};
-							address_list[0] <= address_list[0] + 32'b1;
-							counter <= 32'b0;
+							address_list[0] <= address_list[0] + 32'd1;
+							counter <= 32'd0;
 							bit_counter <= bit_counter + 3'b1;
 						 end
 						 if (bit_counter == 3'b0) begin
@@ -267,11 +199,11 @@ always @(posedge clk_spi or posedge reset_btn) begin
 					end
 				end
 		  end else begin
-			  // rden_list[0] <= 0;
-			  // wren_list[0] <= 0;
-			  address_list[0] <= 32'b0;
-			  bit_counter <= 3'b0;
-			  counter <= 32'b0;
+			  rden_list[0] <= 0;
+			  wren_list[0] <= 0;
+			  address_list[0] <= 32'd0;
+			  bit_counter <= 3'd0;
+			  counter <= 32'd0;
 		  end
     end
 end

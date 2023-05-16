@@ -31,41 +31,41 @@ module KeyBoardController
 			  pause <= 0;
 			  start <= 0;
 			  clear <= 0;
-			  file_id <= 0;
-			  target_file_id <= 0;
+			  file_id <= 16'd0;
+			  target_file_id <= 16'd0;
 			  counter <= 0;
 		 end else begin
 			  if (scancode_valid) begin
 					casez(scancode)
 						 8'b01000101: begin
-							  target_file_id <= 0;
+							  target_file_id <= 16'd0;
 						 end
 						 8'b00010110: begin
-							  target_file_id <= 1;
+							  target_file_id <= 16'd1;
 						 end
 						 8'b00011110: begin
-							  target_file_id <= 2;
+							  target_file_id <= 16'd2;
 						 end
 						 8'b00100110: begin
-							  target_file_id <= 3;
+							  target_file_id <= 16'd3;
 						 end
 						 8'b00100101: begin
-							  target_file_id <= 4;
+							  target_file_id <= 16'd4;
 						 end
 						 8'b00101110: begin
-							  target_file_id <= 5;
+							  target_file_id <= 16'd5;
 						 end
 						 8'b00110110: begin
-							  target_file_id <= 6;
+							  target_file_id <= 16'd6;
 						 end
 						 8'b00111101: begin
-							  target_file_id <= 7;
+							  target_file_id <= 16'd7;
 						 end
 						 8'b00111110: begin
-							  target_file_id <= 8;
+							  target_file_id <= 16'd8;
 						 end
 						 8'b01000110: begin
-							  target_file_id <= 9;
+							  target_file_id <= 16'd9;
 						 end
 						 8'b01001101: begin
 							  pause <= 1;
