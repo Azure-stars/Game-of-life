@@ -1,6 +1,8 @@
 `timescale 1ns / 1ps
 module mod_top (
   input wire clk_100m,
+  input wire clock_btn,          // 右侧微动开关，推荐作为手动时钟，带消抖电路，按下时为 1
+  input wire reset_btn,          // 复位按钮，位于FPGA上左侧开关
   output reg [7: 0] video_red,   // 红色像素，8位
   output reg [7: 0] video_green, // 绿色像素，8位
   output reg [7: 0] video_blue,  // 蓝色像素，8位
@@ -42,16 +44,79 @@ initial begin
     clk_evo = 0;
 end
 
-always @ (posedge clk_vga) begin
-    if (evo_cnt == 49999999) begin
-        if (clk_evo == 0) begin
-            clk_evo <= 1;
-        end else begin
-            clk_evo <= 0;
-        end
+parameter STATE_RST = 0;            // 复位回到的状态，代表演化还没有开始
+parameter STATE_RUNNING = 1;        // 游戏正在运行中，此时`clk_evo`会进行计时变化
+parameter STATE_PAUSE = 2;          // 游戏暂停，此时停止演化
+
+reg [1:0] state;
+reg prev_start;                     // 上一个周期的开始按钮是否被按下
+
+
+initial begin   
+    prev_start = 0;
+    state = STATE_RST;  
+end
+
+always @ (posedge clk_vga, posedge reset_btn) begin
+    prev_start <= clock_btn;
+    // prev_pause <= pause;
+    // prev_clear <= clear;
+
+    if (reset_btn) begin
         evo_cnt <= 0;
-    end else begin
-        evo_cnt <= evo_cnt + 1;
+        clk_evo <= 0;
+        state <= STATE_RST;
+    end
+    else begin
+        case (state)
+            STATE_RST : begin
+                if (clock_btn == 1) begin
+                    state <= STATE_RUNNING;
+                end
+                else begin
+                    evo_cnt <= 0;
+                    clk_evo <= 0;
+                    state <= STATE_RST;
+                end
+            end 
+            STATE_RUNNING : begin
+                // 暂时不支持清空和暂停
+                // if (prev_pause != pause && pause == 1) begin
+                //    state <= STATE_PAUSE;
+                // end
+                // else if (prev_clear != clear && clear == 1) begin
+                //    state <= STATE_RST;
+                // end
+                // else begin
+                if (evo_cnt == 4999999) begin
+                    if (clk_evo == 0) begin
+                        clk_evo <= 1;
+                    end else begin
+                        clk_evo <= 0;
+                    end
+                    evo_cnt <= 0;
+                end else begin
+                    evo_cnt <= evo_cnt + 1;
+                end
+                state <= STATE_RUNNING; 
+                // end
+            end
+            default: begin
+                // STATE_PAUSE
+                // 只有通过按钮才可以脱离暂停状态
+                if (prev_start != clock_btn && clock_btn == 1) begin
+                    state <= STATE_RUNNING;
+                end
+                // else if (prev_clear != clear && clear == 1) begin
+                //    evo_cnt <= 0;
+                //    clk_evo <= 0;
+                //    state <= STATE_RST;
+                // end
+                else begin
+                    state <= STATE_PAUSE;
+                end
+            end
+        endcase
     end
 end
 
@@ -141,7 +206,7 @@ assign ram_wden[3] = (clk_evo == 1) ? round_wden : 0;
 
 // RAM读写数据变化
 assign round_read_val = (clk_evo == 1) ? ram_read_data[0] : ram_read_data[2];
-assign vga_read_val = (clk_evo == 1) ? ram_read_data[1] : ram_read_data[3];
+assign vga_read_val = (state == STATE_RST) ? 1 :((clk_evo == 1) ? ram_read_data[1] : ram_read_data[3]);     // 清空是假暂停，此时vga采样全为0，但是RAM值不变。
 assign ram_write_data[0] = round_write_val;
 assign ram_write_data[1] = round_write_val;
 assign ram_write_data[2] = round_write_val;
@@ -158,5 +223,6 @@ always_comb begin
     video_red = output_video_red;
     video_green = output_video_green;
 end 
+
 
 endmodule

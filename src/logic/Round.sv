@@ -56,6 +56,7 @@ Evolution evo (
     .status(status),
     .live(live)
 );
+
 // 读取模块
 always @ (posedge clk) begin
     if (read_state >= P_READ_STATE_0 && read_state <= P_READ_STATE_8) begin
