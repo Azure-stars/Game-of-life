@@ -51,13 +51,17 @@ parameter STATE_PAUSE = 2;          // 游戏暂停，此时停止演化
 
 reg [1:0] state;
 reg prev_start;                     // 上一个周期的开始按钮是否被按下
-
+reg prev_pause;                     // 上一个周期的暂停按钮是否被按下
+reg prev_clear;                     // 上一个周期的清空按钮是否被按下
+reg start;                          // 本周期的开始按钮是否被按下
+reg pause;                          // 本周期的暂停按钮是否被按下
+reg clear;                          // 本周期的清空按钮是否被按下
 initial begin   
     prev_start = 0;
     state = STATE_RST;  
 end
 
-always @ (posedge clk_vga, posedge reset_btn, posedge clock_btn) begin
+always @ (posedge clk_vga, posedge reset_btn) begin
     // 三个时钟只是暂时的，之后开始时钟会使用电平信号
     // prev_pause <= pause;
     // prev_clear <= clear;
@@ -65,11 +69,6 @@ always @ (posedge clk_vga, posedge reset_btn, posedge clock_btn) begin
         evo_cnt <= 0;
         clk_evo <= 0;
         state <= STATE_RST;
-    end
-    else if (clock_btn) begin
-        evo_cnt <= 0;
-        clk_evo <= 0;
-        state <= STATE_RUNNING;
     end
     else begin
         if (state != STATE_PAUSE) begin
@@ -86,7 +85,15 @@ always @ (posedge clk_vga, posedge reset_btn, posedge clock_btn) begin
         end
         case (state)
             STATE_RST : begin
-                state <= STATE_RST;
+                // if (prev_start != start && start == 1) begin
+                //     evo_cnt <= 0;
+                //     clk_evo <= 0;
+                //     state <= STATE_RUNNING;
+                // end
+                // else begin
+                    state <= STATE_RST;
+                // end
+                
             end 
             STATE_RUNNING : begin
                 // 暂时不支持清空和暂停
@@ -119,10 +126,6 @@ always @ (posedge clk_vga, posedge reset_btn, posedge clock_btn) begin
     end
 end
 
-// 三个RAM
-// 思路：第一个RAM用于演化模块读取的状态
-// 第二个RAM用于演化模块的暂存模块
-// 第三个RAM用于vga模块的显示模块
 
 // clk_evo为高电平时的演化模块
 RAM_1_524288 ram1(
@@ -209,11 +212,15 @@ assign ram_wden[3] = (clk_evo == 1) ? round_wden : 0;
 // RAM读写数据变化
 assign round_read_val = (clk_evo == 1) ? ram_read_data[0] : ram_read_data[2];
 assign vga_read_val = (clk_evo == 1) ? ram_read_data[1] : ram_read_data[3];
-assign ram_write_data[0] = (state == STATE_RST) ? 1 : round_write_val;
-assign ram_write_data[1] = (state == STATE_RST) ? 1 : round_write_val;
-assign ram_write_data[2] = (state == STATE_RST) ? 1 : round_write_val;
-assign ram_write_data[3] = (state == STATE_RST) ? 1 : round_write_val;
-
+// 后续实现预设写入则使用注释代码，而非当前代码，需要对输出值进行控制
+// assign ram_write_data[0] = (state == STATE_RST) ? 1 : round_write_val;
+// assign ram_write_data[1] = (state == STATE_RST) ? 1 : round_write_val;
+// assign ram_write_data[2] = (state == STATE_RST) ? 1 : round_write_val;
+// assign ram_write_data[3] = (state == STATE_RST) ? 1 : round_write_val;
+assign ram_write_data[0] = round_write_val;
+assign ram_write_data[1] = round_write_val;
+assign ram_write_data[2] = round_write_val;
+assign ram_write_data[3] = round_write_val;
 // RAM地址变化
 assign ram_pos[0] = (clk_evo == 1) ? round_read_pos : round_write_pos;
 assign ram_pos[1] = (clk_evo == 1) ? vga_pos : round_write_pos;
