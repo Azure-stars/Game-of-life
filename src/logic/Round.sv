@@ -7,6 +7,8 @@ module Round #(
 )
 (
     input wire clk,                 // 全局时钟
+    input wire start,               // 开始游戏的标志
+    input wire rst,                 // 全局复位
     input wire global_evo_en,       // 演化标志
     input wire prev_status,         // 演化时有效，代表这个round_read_pos在上一个周期的状态
     output reg wden,                // 演化时有效，代表需要写入
@@ -37,7 +39,7 @@ reg[3:0] read_state;     // 用于RAM读取的状态
 reg[3:0] end_state;      // 结束读取位置，不包括自己
 reg[WIDTH - 1: 0] center_hdata;     // 当前输出的real_hdata坐标
 reg[WIDTH - 1: 0] center_vdata;     // 当前输出的real_vdata坐标
-reg[30:0] evo_cnt;              // 1Hz时钟的计数器
+reg prev_start;
 initial begin
     prev_global_evo_en = 0;
     status = 0;
@@ -48,7 +50,7 @@ initial begin
     round_read_pos = 0;
     round_write_pos = 0;
     wden = 0;
-    evo_cnt = 0;
+    prev_start = 0;
     last_read_state = 0;
 end
 
@@ -58,7 +60,29 @@ Evolution evo (
 );
 
 // 读取模块
-always @ (posedge clk) begin
+always @ (posedge clk, posedge rst) begin
+    prev_start <= start;
+    if (rst) begin
+        read_state <= P_RST;
+        prev_global_evo_en <= 0;
+        status <= 0;
+        round_read_pos <= 0;
+        round_write_pos <= 0;
+        wden <= 0;
+        last_read_state <= 0;
+    end
+    else if (prev_start != start) begin
+        // 从清空状态到重新开始演化，此时需要清空当前状态
+        read_state <= P_RST;
+        prev_global_evo_en <= 0;
+        status <= 0;
+        round_read_pos <= 0;
+        round_write_pos <= 0;
+        wden <= 0;
+        last_read_state <= 0;
+    end
+    else 
+    begin
     if (read_state >= P_READ_STATE_0 && read_state <= P_READ_STATE_8) begin
         last_read_state <= read_state;
     end
@@ -236,6 +260,7 @@ always @ (posedge clk) begin
         // 下一个时钟周期才会清零，不会影响当前的周期
         status[8:1] <= 0;
     end
+    end 
 end
 
 endmodule
