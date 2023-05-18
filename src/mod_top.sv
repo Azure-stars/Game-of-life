@@ -93,6 +93,7 @@ ip_pll u_ip_pll(
     .c2     (clk_spi )   // 5MHz SPI SDcard 时钟
 );
 
+wire clk_ram = clk_ps2;
 
 // 七段数码管扫描演示
 reg [31: 0] number;
@@ -133,7 +134,7 @@ wire [23:0] write_address;
 
 ram_1_786432 test_ram(
 .address (address),
-.clock   (clk_spi),
+.clock   (clk_ram),
 .data    (write_data),
 .rden    (rden),
 .wren    (wren),
@@ -153,6 +154,7 @@ SDCardReader sd_card_reader(
 	.sd_miso            (sd_miso),
 	.sd_sclk            (sd_sclk),
 	
+	.clk_ram            (clk_ram),
 	.address (address_list[1]),
 	.write_data    (write_data),
 	.rden    (rden_list[1]),

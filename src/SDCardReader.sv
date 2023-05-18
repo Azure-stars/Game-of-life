@@ -2,6 +2,7 @@ module SDCardReader
 #(parameter P_PARAM_W = 800, P_PARAM_H = 600, FILE_BLOCK = 7'b0)
 (
     input  wire clk_spi,
+    input  wire clk_ram,
 	 input  wire reset,
 	 
     output wire        sd_sclk,     // SPI 时钟
@@ -48,7 +49,7 @@ module SDCardReader
 		 .state_reg          (state_reg)
 	);
 
-	always @(posedge clk_spi or posedge reset) begin
+	always @(posedge clk_ram or posedge reset) begin
 		if (reset) begin
 			current_file_id <= file_id;
   			block_id <= {32'b0, file_id, 7'b0};
