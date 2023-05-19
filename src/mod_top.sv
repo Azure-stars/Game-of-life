@@ -10,7 +10,21 @@ module mod_top (
   output wire        video_hsync, // 行同步（水平同步）信号
   output wire        video_vsync, // 场同步（垂直同步）信号
   output wire        video_clk,   // 像素时钟输出
-  output wire        video_de     // 行数据有效信号，用于区分消隐区
+  output wire        video_de,     // 行数据有效信号，用于区分消隐区
+  
+  
+  input  wire        ps2_clock,   // PS/2 时钟信号
+  input  wire        ps2_data,    // PS/2 数据信号
+    
+  output wire        sd_sclk,     // SPI 时钟
+  output wire        sd_mosi,
+  input  wire        sd_miso,
+  output wire        sd_cs,       // SPI 片选，低有效
+  input  wire        sd_cd,       // 卡插入检测，0 表示有卡插入
+  input  wire        sd_wp, 
+
+  // 调试
+  output wire [31:0] leds         // 32 位 LED 灯，输出 1 时点亮
 );
 wire clk_in = clk_100m;
 
@@ -18,7 +32,10 @@ wire clk_in = clk_100m;
 wire clk_vga;
 ip_pll u_ip_pll(
     .inclk0 (clk_in  ),
-    .c0     (clk_vga )  // 50MHz 像素时钟
+    .c0     (clk_vga ),  // 50MHz 像素时钟	 
+    .c1     (clk_ps2 ),  // 25MHz
+    .c2     (clk_spi )   // 5MHz SPI SDcard 时钟
+
 );
 // 图像输出演示，分辨率 800x600@75Hz，像素时钟为 50MHz，显示渐变色彩条
 reg[7:0] output_video_red;      // 输出的像素颜色
@@ -45,9 +62,9 @@ initial begin
     clk_evo = 0;
 end
 
-parameter STATE_RST = 0;            // 复位回到的状态，代表演化还没有开始
-parameter STATE_RUNNING = 1;        // 游戏正在运行中，此时`clk_evo`会进行计时变化
-parameter STATE_PAUSE = 2;          // 游戏暂停，此时停止演化
+parameter STATE_RST = 2'd0;            // 复位回到的状态，代表演化还没有开始
+parameter STATE_RUNNING = 2'd1;        // 游戏正在运行中，此时`clk_evo`会进行计时变化
+parameter STATE_PAUSE = 2'D2;          // 游戏暂停，此时停止演化
 
 reg [1:0] state;
 reg prev_start;                     // 上一个周期的开始按钮是否被按下
@@ -63,8 +80,8 @@ end
 
 always @ (posedge clk_vga, posedge reset_btn) begin
     // 三个时钟只是暂时的，之后开始时钟会使用电平信号
-    // prev_pause <= pause;
-    // prev_clear <= clear;
+    prev_pause <= pause;
+    prev_clear <= clear;
     if (reset_btn) begin
         evo_cnt <= 0;
         clk_evo <= 0;
@@ -85,27 +102,27 @@ always @ (posedge clk_vga, posedge reset_btn) begin
         end
         case (state)
             STATE_RST : begin
-                // if (prev_start != start && start == 1) begin
-                //     evo_cnt <= 0;
-                //     clk_evo <= 0;
-                //     state <= STATE_RUNNING;
-                // end
-                // else begin
+                if (prev_start != start && start == 1) begin
+                    evo_cnt <= 0;
+                    clk_evo <= 0;
+                    state <= STATE_RUNNING;
+                end
+                else begin
                     state <= STATE_RST;
-                // end
+                end
                 
             end 
             STATE_RUNNING : begin
                 // 暂时不支持清空和暂停
-                // if (prev_pause != pause && pause == 1) begin
-                //    state <= STATE_PAUSE;
-                // end
-                // else if (prev_clear != clear && clear == 1) begin
-                //    state <= STATE_RST;
-                // end
-                // else begin
-                state <= STATE_RUNNING; 
-                // end
+                if (prev_pause != pause && pause == 1) begin
+                   state <= STATE_PAUSE;
+                end
+                else if (prev_clear != clear && clear == 1) begin
+                   state <= STATE_RST;
+                end
+                else begin
+                   state <= STATE_RUNNING; 
+                end
             end
             default: begin
                 // STATE_PAUSE
@@ -113,11 +130,11 @@ always @ (posedge clk_vga, posedge reset_btn) begin
                 if (prev_start != clock_btn && clock_btn == 1) begin
                     state <= STATE_RUNNING;
                 end
-                // else if (prev_clear != clear && clear == 1) begin
-                //    evo_cnt <= 0;
-                //    clk_evo <= 0;
-                //    state <= STATE_RST;
-                // end
+                else if (prev_clear != clear && clear == 1) begin
+                   evo_cnt <= 0;
+                   clk_evo <= 0;
+                   state <= STATE_RST;
+                end
                 else begin
                     state <= STATE_PAUSE;
                 end
@@ -193,6 +210,47 @@ vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1, P_PARAM_N, P_PARAM_M) v
     .data_enable(video_de)
 );
 
+
+// 键盘控制模块
+
+reg [15:0] file_id;
+
+KeyBoardController keyboard_controller (
+    .clk_in    (clk_vga       ),
+    .reset     (reset_btn     ),
+    .ps2_clock (ps2_clock     ),
+    .ps2_data  (ps2_data      ),
+	 .pause     (pause         ),
+	 .start     (start         ),
+	 .clear     (clear         ),
+	 .file_id   (file_id       )
+);
+
+// SD卡
+
+wire read_file_finish;
+
+SDCardReader sd_card_reader(
+	.clk_spi            (clk_vga),
+	.reset              (reset_btn),
+
+	.sd_cs              (sd_cs),
+	.sd_mosi            (sd_mosi),
+	.sd_miso            (sd_miso),
+	.sd_sclk            (sd_sclk),
+	
+	.clk_ram            (clk_vga),
+//	.address (address_list[1]),
+//	.write_data    (write_data),
+//	.rden    (rden_list[1]),
+//	.wren    (wren_list[1]),
+//	.read_data       (read_data),
+
+	.file_id            (file_id),
+	.read_file_finish   (read_file_finish)
+);
+
+
 // RAM读写使能变化
 
 // 高电平演化
@@ -233,5 +291,7 @@ always_comb begin
     video_green = output_video_green;
 end 
 
+// 调试
+assign leds[15:0] = {file_id[7:0], state, prev_pause, prev_start, prev_clear, pause, start, clear};  // read_file_finish
 
 endmodule
