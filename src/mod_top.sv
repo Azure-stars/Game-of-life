@@ -117,7 +117,7 @@ always @ (posedge clk_vga, posedge reset_btn) begin
     end
     else begin
         if (state == STATE_RUNNING) begin
-            if (evo_cnt == 4999999) begin
+            if (evo_cnt == 49999999) begin
                 if (clk_evo == 0) begin
                     clk_evo <= 1;
                 end else begin
