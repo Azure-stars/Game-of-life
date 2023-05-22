@@ -61,9 +61,9 @@ module Init #(
             end
             STATE_FINISH : begin
                 // 成功写入了值
+                write_en <= 0;
                 if (write_addr != (P_PARAM_M * P_PARAM_N - 1)) begin
                     state <= STATE_START;
-                    write_en <= 0;
                     write_addr <= write_addr + 1;
                     read_addr <= read_addr + 1;
                 end

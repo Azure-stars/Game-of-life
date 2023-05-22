@@ -41,29 +41,36 @@ reg[7:0] output_video_blue;     // 输出的像素颜色
 reg[7:0] output_video_green;    // 输出的像素颜色
 reg[30:0] evo_cnt;              // 1Hz时钟的计数器
 reg[4:0] ram_read_data;         // ram读取的数据
-wire[4:0] ram_write_data;        // ram写入的数据
-wire[4:0][23:0] ram_pos;         // ram的读写位置
+logic[4:0] ram_write_data;        // ram写入的数据
+logic[4:0][23:0] ram_pos;         // ram的读写位置
 reg clk_evo;                    // 1Hz时钟
-wire [4:0] ram_rden;             // ram的读取使能
-wire [4:0] ram_wden;             // ram的写入使能
-wire vga_read_val;               // vga当前读取的值
+logic [4:0] ram_rden;             // ram的读取使能
+logic [4:0] ram_wden;             // ram的写入使能
+logic vga_read_val;               // vga当前读取的值
 reg [23:0] vga_pos;                   // vga当前读取的位置
 wire round_wden;                // round写使能
-wire [23:0]round_read_pos;                 // round当前读取的位置
+logic [23:0]round_read_pos;                 // round当前读取的位置
 wire [23:0]round_write_pos;                // round当前写入的位置
 wire round_read_val;             // round当前读取的值
 reg round_write_val;            // round当前即将写入的值，即某一个像素的演化后的状态
 reg init_label;                 // 是否进行初始化
 wire init_read_val;              // init读取的值
 reg init_write_val;             // init写入的值
-wire [23:0]init_read_pos;
+logic [23:0]init_read_pos;
 wire [23:0]init_write_pos;
 reg init_finish;
 wire init_wden; 
+wire [23:0]preset_write_pos;
+wire preset_wden;
+wire preset_write_val;
+reg preset_finish;
+reg preset_rden;
+reg preset_read_val;
 parameter P_PARAM_N = 400;
 parameter P_PARAM_M = 300;
 initial begin
     init_finish = 0;
+    preset_finish = 1;
     evo_cnt = 0;
     clk_evo = 0;
 end
@@ -85,10 +92,11 @@ always @ (posedge clk_vga, posedge reset_btn) begin
     if (reset_btn) begin
         evo_cnt <= 0;
         clk_evo <= 0;
+        init_label <= ~init_label;
         state <= STATE_RST;
     end
     else begin
-        if (state != STATE_PAUSE) begin
+        if (state == STATE_RUNNING) begin
             if (evo_cnt == 4999999) begin
                 if (clk_evo == 0) begin
                     clk_evo <= 1;
@@ -105,13 +113,12 @@ always @ (posedge clk_vga, posedge reset_btn) begin
                 if (start == 1) begin
                     evo_cnt <= 0;
                     clk_evo <= 0;
-                    state <= STATE_RUNNING;
+                    state <= STATE_PAUSE;
                 end
                 else begin
                     state <= STATE_RST;
                 end
-                
-            end 
+            end
             STATE_RUNNING : begin
                 // 暂时不支持清空和暂停
                 if (pause == 1) begin
@@ -120,6 +127,7 @@ always @ (posedge clk_vga, posedge reset_btn) begin
                 else if (clear == 1) begin
                     evo_cnt <= 0;
                     clk_evo <= 0;
+                    init_label <= ~init_label;
                     state <= STATE_RST;
                 end
                 else begin
@@ -135,6 +143,7 @@ always @ (posedge clk_vga, posedge reset_btn) begin
                 else if (clear == 1) begin
                     evo_cnt <= 0;
                     clk_evo <= 0;
+                    init_label <= ~init_label;
                     state <= STATE_RST;
                 end
                 else begin
@@ -251,66 +260,156 @@ KeyBoardController keyboard_controller (
 
 wire read_file_finish;
 
-// SDCardReader sd_card_reader(
-// 	.clk_spi            (clk_vga),
-// 	.reset              (reset_btn),
+SDCardReader sd_card_reader(
+	.clk_spi            (clk_vga),
+	.reset              (reset_btn),
 
-// 	.sd_cs              (sd_cs),
-// 	.sd_mosi            (sd_mosi),
-// 	.sd_miso            (sd_miso),
-// 	.sd_sclk            (sd_sclk),
+	.sd_cs              (sd_cs),
+	.sd_mosi            (sd_mosi),
+	.sd_miso            (sd_miso),
+	.sd_sclk            (sd_sclk),
 	
-// 	.clk_ram            (clk_vga),
-// 	.address (address_list[1]),
-// 	.write_data    (write_data),
-// 	.rden    (rden_list[1]),
-// 	.wren    (wren_list[1]),
-// 	.read_data       (read_data),
-
-// 	.file_id            (file_id),
-// 	.read_file_finish   (read_file_finish)
-// );
+	.clk_ram            (clk_vga),
+	.address (preset_write_pos),
+	.write_data    (preset_write_val),
+	.rden    (preset_rden),
+	.wren    (preset_wden),
+	.read_data       (preset_read_val),
+	.file_id            (file_id),
+	.read_file_finish   (preset_finish)
+);
 
 
 // RAM读写使能变化
 
-// 高电平演化
-assign ram_rden[0] = (clk_evo == 1) ? 1 : 0;
-assign ram_wden[0] = (clk_evo == 1) ? 0 : round_wden;
-// 高电平读取
-assign ram_rden[1] = (clk_evo == 1) ? 1 : 0;
-assign ram_wden[1] = (clk_evo == 1) ? 0 : round_wden;
+// // 高电平演化
+// assign ram_rden[0] = (state == STATE_RST) ? init_finish :(clk_evo == 1) ? 1 : 0;
+// assign ram_wden[0] = (state == STATE_RST) ? init_wden : ((clk_evo == 1) ? 0 : round_wden);
+// // assign ram_wden[0] = (state == STATE_RST) ? ((init_finish == 0) ? init_wden : prev_wdwn) : ((clk_evo == 1) ? 0 : round_wden);
+// // 高电平读取
+// assign ram_rden[1] = (state == STATE_RST) ? init_finish : (clk_evo == 1) ? 1 : 0;
+// assign ram_wden[1] = (state == STATE_RST) ? init_wden : ((clk_evo == 1) ? 0 : round_wden);
 
-// 低电平演化
-assign ram_rden[2] = (clk_evo == 1) ? 0 : 1;
-assign ram_wden[2] = (clk_evo == 1) ? round_wden : 0;
-// 低电平读取
-assign ram_rden[3] = (clk_evo == 1) ? 0 : 1;
-assign ram_wden[3] = (clk_evo == 1) ? round_wden : 0;
+// // 低电平演化
+// assign ram_rden[2] = (state == STATE_RST) ? init_finish : (clk_evo == 1) ? 0 : 1;
+// assign ram_wden[2] = (state == STATE_RST) ? init_wden : ((clk_evo == 1) ? round_wden : 0);
+// // 低电平读取
+// assign ram_rden[3] = (state == STATE_RST) ? init_finish : (clk_evo == 1) ? 0 : 1;
+// assign ram_wden[3] = (state == STATE_RST) ? init_wden : ((clk_evo == 1) ? round_wden : 0);
 
 assign ram_rden[4] = 1;
 assign ram_wden[4] = 0;
 
+always_comb begin
+    if (state == STATE_RST) begin
+        ram_rden[0] = init_finish & preset_finish;
+        ram_rden[1] = init_finish & preset_finish;
+        ram_rden[2] = init_finish & preset_finish;
+        ram_rden[3] = init_finish & preset_finish;
+        if (init_finish == 0) begin
+            ram_wden[0] = init_wden;
+            ram_wden[1] = init_wden;
+            ram_wden[2] = init_wden;
+            ram_wden[3] = init_wden;
+        end
+        else begin
+            ram_wden[0] = preset_wden;
+            ram_wden[1] = preset_wden;
+            ram_wden[2] = preset_wden;
+            ram_wden[3] = preset_wden;
+        end
+    end
+    else begin
+        ram_rden[0] = (clk_evo == 1) ? 1 : 0;
+        ram_rden[1] = (clk_evo == 1) ? 1 : 0;
+        ram_rden[2] = (clk_evo == 1) ? 0 : 1;
+        ram_rden[3] = (clk_evo == 1) ? 0 : 1;
+        ram_wden[0] = (clk_evo == 1) ? 0 : round_wden;
+        ram_wden[1] = (clk_evo == 1) ? 0 : round_wden;
+        ram_wden[2] = (clk_evo == 1) ? round_wden : 0;
+        ram_wden[3] = (clk_evo == 1) ? round_wden : 0;
+    end
+end
+
 // RAM读写数据变化
 assign round_read_val = (clk_evo == 1) ? ram_read_data[0] : ram_read_data[2];
-assign vga_read_val = (clk_evo == 1) ? ram_read_data[1] : ram_read_data[3];
+// assign vga_read_val = (clk_evo == 1) ? ram_read_data[1] : ram_read_data[3];
+assign init_read_val = ram_read_data[4];
+always_comb begin
+    if (state == STATE_RST && (init_finish == 0 || preset_finish == 0)) begin
+        vga_read_val = 8'b11111111;
+    end
+    else begin
+        vga_read_val = (clk_evo == 1) ? ram_read_data[1] : ram_read_data[3];
+    end
+end
+
 // assign vga_read_val = (pause == 1) ?  1 : 0;
 
 // 后续实现预设写入则使用注释代码，而非当前代码，需要对输出值进行控制
-// assign ram_write_data[0] = (state == STATE_PAUSE) ? 1 : round_write_val;
-// assign ram_write_data[1] = (state == STATE_PAUSE) ? 1 : round_write_val;
-// assign ram_write_data[2] = (state == STATE_PAUSE) ? 1 : round_write_val;
-// assign ram_write_data[3] = (state == STATE_PAUSE) ? 1 : round_write_val;
-assign ram_write_data[0] = round_write_val;
-assign ram_write_data[1] = round_write_val;
-assign ram_write_data[2] = round_write_val;
-assign ram_write_data[3] = round_write_val;
+// assign ram_write_data[0] = (state == STATE_RST) ? init_write_val : round_write_val;
+// assign ram_write_data[1] = (state == STATE_RST) ? init_write_val : round_write_val;
+// assign ram_write_data[2] = (state == STATE_RST) ? init_write_val : round_write_val;
+// assign ram_write_data[3] = (state == STATE_RST) ? init_write_val : round_write_val;
+always_comb begin
+    if (state == STATE_RST) begin
+        if (init_finish == 0) begin
+            ram_write_data[0] = init_write_val;
+            ram_write_data[1] = init_write_val;
+            ram_write_data[2] = init_write_val;
+            ram_write_data[3] = init_write_val;
+        end
+        else begin
+            ram_write_data[0] = preset_write_val;
+            ram_write_data[1] = preset_write_val;
+            ram_write_data[2] = preset_write_val;
+            ram_write_data[3] = preset_write_val;
+        end
+    end
+    else begin
+        ram_write_data[0] = round_write_val;
+        ram_write_data[1] = round_write_val;
+        ram_write_data[2] = round_write_val;
+        ram_write_data[3] = round_write_val;
+    end
+end
 assign ram_write_data[4] = 0;
 // RAM地址变化
-assign ram_pos[0] = (clk_evo == 1) ? round_read_pos : round_write_pos;
-assign ram_pos[1] = (clk_evo == 1) ? vga_pos : round_write_pos;
-assign ram_pos[2] = (clk_evo == 1) ? round_write_pos : round_read_pos;
-assign ram_pos[3] = (clk_evo == 1) ? round_write_pos : vga_pos;
+// assign ram_pos[0] = (state == STATE_RST) ? init_write_pos : ((clk_evo == 1) ? round_read_pos : round_write_pos);
+// assign ram_pos[1] = (state == STATE_RST) ? init_write_pos : ((clk_evo == 1) ? vga_pos : round_write_pos);
+// assign ram_pos[2] = (state == STATE_RST) ? init_write_pos : ((clk_evo == 1) ? round_write_pos : round_read_pos);
+// assign ram_pos[3] = (state == STATE_RST) ? init_write_pos : ((clk_evo == 1) ? round_write_pos : vga_pos);
+assign ram_pos[4] = init_read_pos;
+
+always_comb begin
+    if (state == STATE_RST) begin
+        if (init_finish == 0) begin
+            ram_pos[0] = init_write_pos;
+            ram_pos[1] = init_write_pos;
+            ram_pos[2] = init_write_pos;
+            ram_pos[3] = init_write_pos;
+        end
+        else if (preset_finish == 0) begin
+            ram_pos[0] = preset_write_pos;
+            ram_pos[1] = preset_write_pos;
+            ram_pos[2] = preset_write_pos;
+            ram_pos[3] = preset_write_pos;
+        end
+        else begin
+            ram_pos[0] = vga_pos;
+            ram_pos[1] = vga_pos;
+            ram_pos[2] = vga_pos;
+            ram_pos[3] = vga_pos;
+        end
+    end
+    else begin
+        ram_pos[0] = (clk_evo == 1) ? round_read_pos : round_write_pos;
+        ram_pos[1] = (clk_evo == 1) ? vga_pos : round_write_pos;
+        ram_pos[2] = (clk_evo == 1) ? round_write_pos : round_read_pos;
+        ram_pos[3] = (clk_evo == 1) ? round_write_pos : vga_pos;
+    end
+end
+
 always_comb begin
     // 为了保证三者同时变化
     video_blue = output_video_blue;
@@ -320,6 +419,6 @@ end
 
 // 调试
 assign leds[31:16] = 16'b1111111111111111;
-assign leds[15:0] = {3'b0, file_id[7:0], state, pause, start, clear};  // read_file_finish
+assign leds[15:0] = {2'b0, file_id[7:0], init_finish, state, pause, start, clear};  // read_file_finish
 
 endmodule
