@@ -71,7 +71,7 @@ always @ (posedge clk, posedge rst) begin
         wden <= 0;
         last_read_state <= 0;
     end
-    else if (prev_start != start) begin
+    else if (prev_start != start && start == 1) begin
         // 从清空状态到重新开始演化，此时需要清空当前状态
         read_state <= P_RST;
         prev_global_evo_en <= 0;

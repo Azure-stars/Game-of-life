@@ -3,21 +3,23 @@ module SDCardReader
 (
     input  wire clk_spi,
     input  wire clk_ram,
-	 input  wire reset,
+	input  wire reset,
 	 
     output wire        sd_sclk,     // SPI 时钟
     output wire        sd_mosi,
     input  wire        sd_miso,
     output wire        sd_cs,       // SPI 片选，低有效
 
-	 output wire        [23:0] address,
-	 output wire        write_data,
-	 inout wire         rden,
-	 inout wire         wren,
-	 input wire         read_data,
-	 
-	 input  wire [15:0] file_id,
-	 output wire read_file_finish
+	output reg        [23:0] address,
+	output reg        write_data,
+	output reg         rden,
+	output reg         wren,
+	input wire         read_data,
+	
+
+	
+	input  wire [15:0] file_id,
+	output reg read_file_finish
 );
 
 	localparam STATE_INIT = 2'd0;
@@ -28,7 +30,7 @@ module SDCardReader
 	reg [31:0] block_id;
 	// reg [31:0] target_block_id;
 	wire [7:0] mem [511:0];
-	wire execute;
+	reg execute;
 	reg [1:0] state_reg;
 
 
@@ -91,9 +93,9 @@ module SDCardReader
 									//	 read_file_finish <= 1;
 									//end
 								end
-							 end else begin
-								  wren <= 1;
-							 end
+							end else begin
+								wren <= 1;
+							end
 						end
 					end
 					default: begin
@@ -112,7 +114,7 @@ module SDCardReader
 					wren <= 0;
 
 					write_bit <= 32'b0;
-			      address <= 32'b11111111111111111111111111111111;
+			      	address <= 32'b11111111111111111111111111111111;
 					execute <= 0;
 				end
 			end

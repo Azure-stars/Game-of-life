@@ -2,7 +2,6 @@
 module mod_top (
   input wire clk_100m,
   input wire reset_n,            // 上电复位信号，低有效
-  input wire clock_btn,          // 右侧微动开关，推荐作为手动时钟，带消抖电路，按下时为 1
   input wire reset_btn,          // 复位按钮，位于FPGA上左侧开关
   output reg [7: 0] video_red,   // 红色像素，8位
   output reg [7: 0] video_green, // 绿色像素，8位
@@ -35,19 +34,18 @@ ip_pll u_ip_pll(
     .c0     (clk_vga ),  // 50MHz 像素时钟	 
     .c1     (clk_ps2 ),  // 25MHz
     .c2     (clk_spi )   // 5MHz SPI SDcard 时钟
-
 );
 // 图像输出演示，分辨率 800x600@75Hz，像素时钟为 50MHz，显示渐变色彩条
 reg[7:0] output_video_red;      // 输出的像素颜色
 reg[7:0] output_video_blue;     // 输出的像素颜色
 reg[7:0] output_video_green;    // 输出的像素颜色
 reg[30:0] evo_cnt;              // 1Hz时钟的计数器
-reg[3:0] ram_read_data;         // ram读取的数据
-wire[3:0] ram_write_data;        // ram写入的数据
-wire[3:0][23:0] ram_pos;         // ram的读写位置
+reg[4:0] ram_read_data;         // ram读取的数据
+wire[4:0] ram_write_data;        // ram写入的数据
+wire[4:0][23:0] ram_pos;         // ram的读写位置
 reg clk_evo;                    // 1Hz时钟
-wire [3:0] ram_rden;             // ram的读取使能
-wire [3:0] ram_wden;             // ram的写入使能
+wire [4:0] ram_rden;             // ram的读取使能
+wire [4:0] ram_wden;             // ram的写入使能
 wire vga_read_val;               // vga当前读取的值
 reg [23:0] vga_pos;                   // vga当前读取的位置
 wire round_wden;                // round写使能
@@ -55,9 +53,17 @@ wire [23:0]round_read_pos;                 // round当前读取的位置
 wire [23:0]round_write_pos;                // round当前写入的位置
 wire round_read_val;             // round当前读取的值
 reg round_write_val;            // round当前即将写入的值，即某一个像素的演化后的状态
+reg init_label;                 // 是否进行初始化
+wire init_read_val;              // init读取的值
+reg init_write_val;             // init写入的值
+wire [23:0]init_read_pos;
+wire [23:0]init_write_pos;
+reg init_finish;
+wire init_wden; 
 parameter P_PARAM_N = 400;
 parameter P_PARAM_M = 300;
 initial begin
+    init_finish = 0;
     evo_cnt = 0;
     clk_evo = 0;
 end
@@ -67,21 +73,15 @@ parameter STATE_RUNNING = 2'd1;        // 游戏正在运行中，此时`clk_evo
 parameter STATE_PAUSE = 2'D2;          // 游戏暂停，此时停止演化
 
 reg [1:0] state;
-reg prev_start;                     // 上一个周期的开始按钮是否被按下
-reg prev_pause;                     // 上一个周期的暂停按钮是否被按下
-reg prev_clear;                     // 上一个周期的清空按钮是否被按下
 reg start;                          // 本周期的开始按钮是否被按下
 reg pause;                          // 本周期的暂停按钮是否被按下
 reg clear;                          // 本周期的清空按钮是否被按下
 initial begin   
-    prev_start = 0;
     state = STATE_RST;  
 end
 
 always @ (posedge clk_vga, posedge reset_btn) begin
     // 三个时钟只是暂时的，之后开始时钟会使用电平信号
-    prev_pause <= pause;
-    prev_clear <= clear;
     if (reset_btn) begin
         evo_cnt <= 0;
         clk_evo <= 0;
@@ -102,7 +102,7 @@ always @ (posedge clk_vga, posedge reset_btn) begin
         end
         case (state)
             STATE_RST : begin
-                if (prev_start != start && start == 1) begin
+                if (start == 1) begin
                     evo_cnt <= 0;
                     clk_evo <= 0;
                     state <= STATE_RUNNING;
@@ -114,11 +114,13 @@ always @ (posedge clk_vga, posedge reset_btn) begin
             end 
             STATE_RUNNING : begin
                 // 暂时不支持清空和暂停
-                if (prev_pause != pause && pause == 1) begin
+                if (pause == 1) begin
                    state <= STATE_PAUSE;
                 end
-                else if (prev_clear != clear && clear == 1) begin
-                   state <= STATE_RST;
+                else if (clear == 1) begin
+                    evo_cnt <= 0;
+                    clk_evo <= 0;
+                    state <= STATE_RST;
                 end
                 else begin
                    state <= STATE_RUNNING; 
@@ -127,13 +129,13 @@ always @ (posedge clk_vga, posedge reset_btn) begin
             default: begin
                 // STATE_PAUSE
                 // 只有通过按钮才可以脱离暂停状态
-                if (prev_start != clock_btn && clock_btn == 1) begin
+                if (start == 1) begin
                     state <= STATE_RUNNING;
                 end
-                else if (prev_clear != clear && clear == 1) begin
-                   evo_cnt <= 0;
-                   clk_evo <= 0;
-                   state <= STATE_RST;
+                else if (clear == 1) begin
+                    evo_cnt <= 0;
+                    clk_evo <= 0;
+                    state <= STATE_RST;
                 end
                 else begin
                     state <= STATE_PAUSE;
@@ -184,10 +186,18 @@ RAM_1_524288 ram_4(
     .data(ram_write_data[3])
 );
 
+RAM_1_524288 ram_init(
+    .address(ram_pos[4]),
+    .clock(clk_vga),
+    .wren(ram_wden[4]),
+    .rden(ram_rden[4]),
+    .q(ram_read_data[4]),
+    .data(ram_write_data[4])
+);
 
 Round #(P_PARAM_M, P_PARAM_N, 12) round (
     .clk(clk_vga),
-    .start(clock_btn),
+    .start(start),
     .rst(reset_btn),
     .global_evo_en(clk_evo),
     .prev_status(round_read_val),
@@ -195,6 +205,17 @@ Round #(P_PARAM_M, P_PARAM_N, 12) round (
     .round_read_pos(round_read_pos),
     .round_write_pos(round_write_pos),
     .live(round_write_val)              // 仅在写使能为高时有效
+);
+
+Init #(P_PARAM_M, P_PARAM_N, 12) init(
+    .clk(clk_vga),
+    .start(init_label),
+    .read_val(init_read_val),
+    .write_en(init_wden),
+    .write_val(init_write_val),
+    .read_addr(init_read_pos),
+    .write_addr(init_write_pos),
+    .finish(init_finish)
 );
 
 assign video_clk = clk_vga;
@@ -216,39 +237,39 @@ vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1, P_PARAM_N, P_PARAM_M) v
 reg [15:0] file_id;
 
 KeyBoardController keyboard_controller (
-    .clk_in    (clk_vga       ),
-    .reset     (reset_btn     ),
-    .ps2_clock (ps2_clock     ),
-    .ps2_data  (ps2_data      ),
-	 .pause     (pause         ),
-	 .start     (start         ),
-	 .clear     (clear         ),
-	 .file_id   (file_id       )
+    .clk_in    (clk_vga),
+    .reset     (reset_btn),
+    .ps2_clock (ps2_clock),
+    .ps2_data  (ps2_data),
+	.pause     (pause),
+	.start     (start),
+	.clear     (clear),
+	.file_id   (file_id)
 );
 
 // SD卡
 
 wire read_file_finish;
 
-SDCardReader sd_card_reader(
-	.clk_spi            (clk_vga),
-	.reset              (reset_btn),
+// SDCardReader sd_card_reader(
+// 	.clk_spi            (clk_vga),
+// 	.reset              (reset_btn),
 
-	.sd_cs              (sd_cs),
-	.sd_mosi            (sd_mosi),
-	.sd_miso            (sd_miso),
-	.sd_sclk            (sd_sclk),
+// 	.sd_cs              (sd_cs),
+// 	.sd_mosi            (sd_mosi),
+// 	.sd_miso            (sd_miso),
+// 	.sd_sclk            (sd_sclk),
 	
-	.clk_ram            (clk_vga),
-//	.address (address_list[1]),
-//	.write_data    (write_data),
-//	.rden    (rden_list[1]),
-//	.wren    (wren_list[1]),
-//	.read_data       (read_data),
+// 	.clk_ram            (clk_vga),
+// 	.address (address_list[1]),
+// 	.write_data    (write_data),
+// 	.rden    (rden_list[1]),
+// 	.wren    (wren_list[1]),
+// 	.read_data       (read_data),
 
-	.file_id            (file_id),
-	.read_file_finish   (read_file_finish)
-);
+// 	.file_id            (file_id),
+// 	.read_file_finish   (read_file_finish)
+// );
 
 
 // RAM读写使能变化
@@ -267,18 +288,24 @@ assign ram_wden[2] = (clk_evo == 1) ? round_wden : 0;
 assign ram_rden[3] = (clk_evo == 1) ? 0 : 1;
 assign ram_wden[3] = (clk_evo == 1) ? round_wden : 0;
 
+assign ram_rden[4] = 1;
+assign ram_wden[4] = 0;
+
 // RAM读写数据变化
 assign round_read_val = (clk_evo == 1) ? ram_read_data[0] : ram_read_data[2];
 assign vga_read_val = (clk_evo == 1) ? ram_read_data[1] : ram_read_data[3];
+// assign vga_read_val = (pause == 1) ?  1 : 0;
+
 // 后续实现预设写入则使用注释代码，而非当前代码，需要对输出值进行控制
-// assign ram_write_data[0] = (state == STATE_RST) ? 1 : round_write_val;
-// assign ram_write_data[1] = (state == STATE_RST) ? 1 : round_write_val;
-// assign ram_write_data[2] = (state == STATE_RST) ? 1 : round_write_val;
-// assign ram_write_data[3] = (state == STATE_RST) ? 1 : round_write_val;
+// assign ram_write_data[0] = (state == STATE_PAUSE) ? 1 : round_write_val;
+// assign ram_write_data[1] = (state == STATE_PAUSE) ? 1 : round_write_val;
+// assign ram_write_data[2] = (state == STATE_PAUSE) ? 1 : round_write_val;
+// assign ram_write_data[3] = (state == STATE_PAUSE) ? 1 : round_write_val;
 assign ram_write_data[0] = round_write_val;
 assign ram_write_data[1] = round_write_val;
 assign ram_write_data[2] = round_write_val;
 assign ram_write_data[3] = round_write_val;
+assign ram_write_data[4] = 0;
 // RAM地址变化
 assign ram_pos[0] = (clk_evo == 1) ? round_read_pos : round_write_pos;
 assign ram_pos[1] = (clk_evo == 1) ? vga_pos : round_write_pos;
@@ -292,6 +319,7 @@ always_comb begin
 end 
 
 // 调试
-assign leds[15:0] = {file_id[7:0], state, prev_pause, prev_start, prev_clear, pause, start, clear};  // read_file_finish
+assign leds[31:16] = 16'b1111111111111111;
+assign leds[15:0] = {3'b0, file_id[7:0], state, pause, start, clear};  // read_file_finish
 
 endmodule
