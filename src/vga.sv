@@ -17,6 +17,8 @@ module vga
 (
     input wire clk,
     input wire vga_live,                // vga读取的像素是否存活
+    input wire setting_status,          // 是否为手动选中状态
+    input wire [2 * WIDTH - 1:0] setting_pos,      // 手动选中的位置
     output wire hsync,  
     output wire vsync,
     output reg [2 * WIDTH - 1:0] pos,   // 当前读取的位置
@@ -69,31 +71,36 @@ initial begin
     pos = 0;
 end
 always @ (posedge clk) begin
-    pos <= vdata[WIDTH - 1: 1] * P_PARAM_N + hdata[WIDTH - 1: 1];
+    pos <= vdata[WIDTH - 1: 0] * P_PARAM_N + hdata[WIDTH - 1: 0];
 end
-// always @ (posedge clk)
-// begin
-//     if (hdata < HSIZE - 1) begin
-//         pos <= ((hdata + 2) / PIXIV) + (vdata / PIXIV) * P_PARAM_N;
-//     end
-//     else begin
-//         pos <= 0;
-//     end
-// end
 always @ (posedge clk)
 begin
     if(hdata < HSIZE && vdata < VSIZE) begin
         if (vga_live) begin
             // 存活，为白色
-            video_red   <= 8'b11111111;
-            video_green <= 8'b11111111;
-            video_blue  <= 8'b11111111;
+            if (setting_status && setting_pos == pos) begin
+                video_red <= 8'b11111111;
+                video_green <= 8'b00000000;
+                video_blue <= 8'b00000000;
+            end
+            else begin
+                video_red   <= 8'b11111111;
+                video_green <= 8'b11111111;
+                video_blue  <= 8'b11111111; 
+            end
         end
         else begin
             // 非黑即白
-            video_red   <= 8'b00000000;
-            video_green <= 8'b00000000;
-            video_blue  <= 8'b00000000;
+            if (setting_status && setting_pos == pos) begin
+                video_red <= 8'b00000000;
+                video_green <= 8'b00000000;
+                video_blue <= 8'b11111111;
+            end
+            else begin
+                video_red   <= 8'b00000000;
+                video_green <= 8'b00000000;
+                video_blue  <= 8'b00000000; 
+            end
         end
     end
     else begin

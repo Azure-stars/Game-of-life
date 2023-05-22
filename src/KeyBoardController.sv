@@ -1,12 +1,14 @@
 module KeyBoardController
 (
-	input  wire clk_in,  // 100Mhz
+	input  wire clk_in,  // 50Mhz
 	input  wire reset,   // reset_btn
     input wire ps2_clock,
     input wire ps2_data,
 	output reg pause,
 	output reg start,
 	output reg clear,
+	output reg manual,				// 手动设置
+	output reg [3:0] setting,		// 手动设置状态下的移动，0b0001为A，0b0010为W，0b0100为S，0b1000为D
 	output reg [15:0] file_id
 );
 	
@@ -72,6 +74,7 @@ module KeyBoardController
 						pause <= 1;
 						start <= 0;
 						running <= 0;
+						manual <= 0;
 					end
 					end
 					8'b01011010: begin
@@ -79,15 +82,65 @@ module KeyBoardController
 						start <= 1;
 						pause <= 0;
 						running <= 1;
+						manual <= 0;
 					end
 					end
 					8'b00101101: begin
 						clear <= 1;
 						start <= 0;
 						pause <= 0;
-//							  start <= 0;
-//							  pause <= 1;
 						running <= 0;
+						manual <= 0;
+					end
+					8'b00111010 : begin
+						// 按下M键
+						if (running == 0) begin
+							manual <= 1;
+							clear <= 0;
+							start <= 0;
+							pause <= 0;
+						end
+					end
+					8'b00110001 : begin
+						// 按下N键
+						if (manual == 1) begin
+							manual <= 0;
+							clear <= 0;
+							start <= 0;
+							pause <= 0;
+						end
+					end
+					8'b00011100: begin
+						// 按下A键
+						if (manual == 1) begin
+							// 仅在非运行状态下才可以使用手动设置
+							setting <= 4'b0001;
+							// 不改变其他状态
+						end
+					end
+					8'b00011101: begin
+						// 按下W键
+						if (manual == 1) begin
+							// 仅在非运行状态下才可以使用手动设置
+							setting <= 4'b0010;
+							// 不改变其他状态
+						end
+					end
+					8'b00011011: begin
+						// 按下S键
+						if (manual == 1) begin
+							// 仅在非运行状态下才可以使用手动设置
+							setting <= 4'b0100;
+							// 不改变其他状态
+						end
+					end
+					8'b00100011: begin
+						// 按下D键
+						if (manual == 1) begin
+							// 仅在非运行状态下才可以使用手动设置
+							setting <= 4'b1000;
+							// 不改变其他状态
+						end
 					end
 					default: begin
 //						     pause <= 1;
@@ -95,18 +148,23 @@ module KeyBoardController
 //							  clear <= 0;
 					end
 				endcase
-				
 				if (running == 0) begin
 					file_id <= target_file_id;
 				end
 			end else begin
+				setting <= 0;
+				// pause <= 0;
+				// start <= 0;
+				// clear <= 0;
 				if (counter == 16'b1111111111111111) begin
 					counter <= 0;
 					pause <= 0;
 					start <= 0;
 					clear <= 0;
-				end else begin
-					if (pause == 1 || start == 1 || clear == 1) begin
+					// manual <= 0;
+				end
+				 else begin
+					if (pause == 1 || start == 1 || clear == 1 || manual == 1) begin
 						counter <= counter + 1;
 					end else begin
 						counter = 0;
