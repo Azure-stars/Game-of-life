@@ -81,6 +81,10 @@ reg [11:0]setting_vdata;
 reg [23:0]setting_pos;              
 wire manual_flag;              // 是否处于手动写入的状态
 reg [3:0] manual_forward;       // 手动按键设置方向
+reg manual_wden;                // 手动写入的使能
+reg manual_read_val;            // 手动读入的值
+reg manual_write_val;           // 手动写入的值
+reg manual_address;             // 手动写入的地址
 
 parameter P_PARAM_N = 800;
 parameter P_PARAM_M = 600;
@@ -117,7 +121,7 @@ always @ (posedge clk_vga, posedge reset_btn) begin
     end
     else begin
         if (state == STATE_RUNNING) begin
-            if (evo_cnt == 49999999) begin
+            if (evo_cnt == 4999999) begin
                 if (clk_evo == 0) begin
                     clk_evo <= 1;
                 end else begin
@@ -163,38 +167,40 @@ always @ (posedge clk_vga, posedge reset_btn) begin
                     state <= prev_state;
                 end
                 else begin
-                    case (manual_forward)
-                        4'b0001 : begin
-                            // A键
-                            if (setting_hdata != 0) begin
-                                setting_pos <= setting_pos - 1;
-                                setting_hdata <= setting_hdata - 1;
+                    if (manual_forward != 0) begin
+                        case (manual_forward)
+                            4'b0001 : begin
+                                // A键
+                                if (setting_hdata != 0) begin
+                                    setting_pos <= setting_pos - 1;
+                                    setting_hdata <= setting_hdata - 1;
+                                end
                             end
-                        end
-                        4'b0010 : begin
-                            // 按下W键
-                            if (setting_vdata > 0) begin
-                                setting_pos <= setting_pos - P_PARAM_N;
-                                setting_vdata <= setting_vdata - 1;
+                            4'b0010 : begin
+                                // 按下W键
+                                if (setting_vdata > 0) begin
+                                    setting_pos <= setting_pos - P_PARAM_N;
+                                    setting_vdata <= setting_vdata - 1;
+                                end
                             end
-                        end
-                        4'b0100 : begin
-                            // 按下S键
-                            if (setting_vdata < P_PARAM_M - 1) begin
-                                setting_pos <= setting_pos + P_PARAM_N;
-                                setting_vdata <= setting_vdata + 1;
+                            4'b0100 : begin
+                                // 按下S键
+                                if (setting_vdata < P_PARAM_M - 1) begin
+                                    setting_pos <= setting_pos + P_PARAM_N;
+                                    setting_vdata <= setting_vdata + 1;
+                                end
                             end
-                        end
-                        4'b1000 : begin
-                            // 按下D键
-                            if (setting_hdata < P_PARAM_N - 1) begin
-                                setting_pos <= setting_pos + 1;
-                                setting_hdata <= setting_hdata + 1;
+                            4'b1000 : begin
+                                // 按下D键
+                                if (setting_hdata < P_PARAM_N - 1) begin
+                                    setting_pos <= setting_pos + 1;
+                                    setting_hdata <= setting_hdata + 1;
+                                end
                             end
-                        end
-                        default: begin
-                        end 
-                    endcase
+                            default: begin
+                            end 
+                        endcase
+                    end
                 end
             end
             default: begin
@@ -311,7 +317,7 @@ vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1, P_PARAM_N, P_PARAM_M) v
 
 // Manual #(P_PARAM_M, P_PARAM_N, 12) manual_io (
 //     .clk(clk_vga),
-//     .modify()
+//     .modify(modify),
 // )
 
 // // 键盘控制模块
@@ -328,6 +334,7 @@ KeyBoardController keyboard_controller (
 	.clear     (clear),
     .manual(manual),
     .setting(manual_forward),
+    .modify(modify),
 	.file_id   (file_id)
 );
 
@@ -361,21 +368,48 @@ assign ram_wden[4] = 0;
 
 always_comb begin
     if (state == STATE_RST) begin
-        ram_rden[0] = init_finish & preset_finish;
-        ram_rden[1] = init_finish & preset_finish;
-        ram_rden[2] = init_finish & preset_finish;
-        ram_rden[3] = init_finish & preset_finish;
+        if (init_finish == 0 && preset_finish == 0) begin
+            ram_rden[0] = 0;
+            ram_rden[1] = 0;
+            ram_rden[2] = 0;
+            ram_rden[3] = 0;
+        end
+        else if (manual == 1) begin
+            ram_rden[0] = (clk_evo == 1) ? 1 : 0;
+            ram_rden[1] = (clk_evo == 1) ? 1 : 0;
+            ram_rden[2] = (clk_evo == 1) ? 0 : 1;
+            ram_rden[3] = (clk_evo == 1) ? 0 : 1;
+        end
+        else begin
+            ram_rden[0] = 1;
+            ram_rden[1] = 1;
+            ram_rden[2] = 1;
+            ram_rden[3] = 1;
+        end
         if (init_finish == 0) begin
             ram_wden[0] = init_wden;
             ram_wden[1] = init_wden;
             ram_wden[2] = init_wden;
             ram_wden[3] = init_wden;
         end
-        else begin
+        else if (preset_finish == 0) begin
             ram_wden[0] = preset_wden;
             ram_wden[1] = preset_wden;
             ram_wden[2] = preset_wden;
             ram_wden[3] = preset_wden;
+        end
+        else if (manual == 1) begin
+            // 交给了manual模块
+            ram_wden[0] = (clk_evo == 1) ? 0 : manual_wden;
+            ram_wden[1] = (clk_evo == 1) ? 0 : manual_wden;
+            ram_wden[2] = (clk_evo == 1) ? manual_wden : 0;
+            ram_wden[3] = (clk_evo == 1) ? manual_wden : 0;
+        end
+        else begin
+            ram_wden[0] = 0;
+            ram_wden[1] = 0;
+            ram_wden[2] = 0;
+            ram_wden[3] = 0;
         end
     end
     else begin
@@ -414,11 +448,18 @@ always_comb begin
             ram_write_data[2] = init_write_val;
             ram_write_data[3] = init_write_val;
         end
-        else begin
+        else if (preset_finish == 0) begin
             ram_write_data[0] = preset_write_val;
             ram_write_data[1] = preset_write_val;
             ram_write_data[2] = preset_write_val;
             ram_write_data[3] = preset_write_val;
+        end
+        else begin
+            // 交给manual模块
+            ram_write_data[0] = manual_write_val;
+            ram_write_data[1] = manual_write_val;
+            ram_write_data[2] = manual_write_val;
+            ram_write_data[3] = manual_write_val;
         end
     end
     else begin
@@ -447,10 +488,10 @@ always_comb begin
             ram_pos[3] = preset_write_pos;
         end
         else begin
-            ram_pos[0] = vga_pos;
-            ram_pos[1] = vga_pos;
-            ram_pos[2] = vga_pos;
-            ram_pos[3] = vga_pos;
+            ram_pos[0] = manual_address;
+            ram_pos[1] = (clk_evo == 1) ? vga_pos : manual_address;
+            ram_pos[2] = manual_address;
+            ram_pos[3] = (clk_evo == 1) ? manual_address : vga_pos;
         end
     end
     else begin

@@ -9,6 +9,7 @@ module KeyBoardController
 	output reg clear,
 	output reg manual,				// 手动设置
 	output reg [3:0] setting,		// 手动设置状态下的移动，0b0001为A，0b0010为W，0b0100为S，0b1000为D
+	output reg modify,				// 手动设置下确认修改
 	output reg [15:0] file_id
 );
 	
@@ -118,12 +119,23 @@ module KeyBoardController
 							// 不改变其他状态
 						end
 					end
+					8'b00101000 : begin
+						// 松开A键
+						if (manual == 1) begin
+							setting <= 4'b0000;
+						end
+					end
 					8'b00011101: begin
 						// 按下W键
 						if (manual == 1) begin
 							// 仅在非运行状态下才可以使用手动设置
 							setting <= 4'b0010;
 							// 不改变其他状态
+						end
+					end
+					8'b00101001 : begin
+						if (manual == 1) begin
+							setting <= 4'b0000;
 						end
 					end
 					8'b00011011: begin
@@ -134,12 +146,38 @@ module KeyBoardController
 							// 不改变其他状态
 						end
 					end
+					8'b00100111 : begin
+						// 松开S键
+						if (manual == 1) begin
+							setting <= 4'b0000;
+						end
+					end
 					8'b00100011: begin
 						// 按下D键
 						if (manual == 1) begin
 							// 仅在非运行状态下才可以使用手动设置
 							setting <= 4'b1000;
 							// 不改变其他状态
+						end
+					end
+					8'b00110101 : begin
+						// 松开D键
+						if (manual == 1) begin
+							// 仅在非运行状态下才可以使用手动设置
+							setting <= 4'b0000;
+							// 不改变其他状态
+						end
+					end
+					8'b00101001 : begin
+						// 按下空格
+						if (manual == 1) begin
+							modify <= 1;
+						end
+					end
+					8'b01000001 : begin
+						// 松开空格
+						if (manual == 1) begin
+							modify <= 0;
 						end
 					end
 					default: begin
@@ -152,7 +190,6 @@ module KeyBoardController
 					file_id <= target_file_id;
 				end
 			end else begin
-				setting <= 0;
 				// pause <= 0;
 				// start <= 0;
 				// clear <= 0;
