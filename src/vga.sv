@@ -15,6 +15,11 @@
 module vga
 #(parameter WIDTH = 0, HSIZE = 0, HFP = 0, HSP = 0, HMAX = 0, VSIZE = 0, VFP = 0, VSP = 0, VMAX = 0, HSPP = 0, VSPP = 0, P_PARAM_N = 0, P_PARAM_M = 0)
 (
+
+    input wire [15:0] shift_x,
+    input wire [15:0] shift_y,
+    input wire [3:0] scroll,
+
     input wire clk,
     input wire vga_live,                // vga读取的像素是否存活
     input wire setting_status,          // 是否为手动选中状态
@@ -72,11 +77,11 @@ initial begin
 end
 always @ (posedge clk) begin
     if (hdata < HSIZE) begin
-        pos <= vdata * P_PARAM_N + hdata + 2;
+        pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N + ((hdata[WIDTH - 1:0] >> scroll) + shift_x) + 2;  // {vdata, 9'd0} + {vdata, 8'd0} + {vdata, 5'd0}
     end
     else if (hdata == HMAX - 2) begin
         if (vdata < VSIZE - 1) begin
-            pos <= vdata * P_PARAM_N + 1;
+            pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N + 1;  // {vdata, 9'd0} + {vdata, 8'd0} + {vdata, 5'd0}
         end
         else begin
             // vdata为VMAX的情况被包含了
@@ -85,7 +90,7 @@ always @ (posedge clk) begin
     end
     else if (hdata == HMAX - 1) begin
         if (vdata < VSIZE - 1) begin
-            pos <= vdata * P_PARAM_N + 2;
+            pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N + 2;  // {vdata, 9'd0} + {vdata, 8'd0} + {vdata, 5'd0}
         end
         else if (vdata == VMAX - 1) begin
             pos <= 1;

@@ -95,7 +95,13 @@ reg start;                          // 本周期的开始按钮是否被按下
 reg pause;                          // 本周期的暂停按钮是否被按下
 reg clear;                          // 本周期的清空按钮是否被按下
 reg manual;                         // 本周起的手动设置按钮是否被按下
-reg modify;                         // 本周期的修改按钮是否被按下                    
+reg modify;                         // 本周期的修改按钮是否被按下    
+
+// 放缩平移
+reg [15:0] shift_x;
+reg [15:0] shift_y;
+reg [3:0] scroll;
+                
 initial begin   
     state = STATE_RST;
     prev_state = STATE_RST;
@@ -117,7 +123,7 @@ always @ (posedge clk_vga, posedge reset_btn) begin
     end
     else begin
         if (state == STATE_RUNNING) begin
-            if (evo_cnt == 49999999) begin
+            if (evo_cnt == 9999999) begin
                 if (clk_evo == 0) begin
                     clk_evo <= 1;
                 end else begin
@@ -306,7 +312,10 @@ vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1, P_PARAM_N, P_PARAM_M) v
     .video_blue(output_video_green),
     .hsync(video_hsync),
     .vsync(video_vsync),
-    .data_enable(video_de)
+    .data_enable(video_de),
+	.shift_x   (shift_x),
+	.shift_y   (shift_y),
+	.scroll    (scroll)
 );
 
 // Manual #(P_PARAM_M, P_PARAM_N, 12) manual_io (
@@ -328,7 +337,10 @@ KeyBoardController keyboard_controller (
 	.clear     (clear),
     .manual(manual),
     .setting(manual_forward),
-	.file_id   (file_id)
+	.file_id   (file_id),
+	.shift_x   (shift_x),
+	.shift_y   (shift_y),
+	.scroll    (scroll)
 );
 
 // SD卡
