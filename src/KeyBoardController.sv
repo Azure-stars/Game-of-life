@@ -14,7 +14,8 @@ module KeyBoardController
 
 	output reg [15:0] shift_x,
 	output reg [15:0] shift_y,
-	output reg [2:0] scroll
+	output reg [2:0] scroll,
+	output reg [3:0] evo_left_shift
 );
 	
 	wire [7:0] scancode;  // PS2
@@ -24,7 +25,10 @@ module KeyBoardController
 	reg running;
 	
 	reg [7:0] last_code;
-	
+
+	reg [15:0] shift_x_;
+	reg [15:0] shift_y_;
+
 	keyboard u_keyboard (
 		.clock     (clk_in        ),
 		.reset     (reset         ),
@@ -44,12 +48,25 @@ module KeyBoardController
 			target_file_id <= 16'd0;
 			counter <= 0;
 			
+			shift_x_ <= 16'd0;
+			shift_y_ <= 16'd0;
 			shift_x <= 16'd0;
 			shift_y <= 16'd0;
 			scroll <= 3'd0;
+			evo_left_shift <= 4'd2;
 			
 			last_code <= 8'd0;
 		end else begin
+			if (shift_y_ + (P_PARAM_M >> scroll) <= P_PARAM_M) begin
+				shift_y <= shift_y_;
+			end else begin
+				shift_y_ <= P_PARAM_M - (P_PARAM_M >> scroll);
+			end
+			if (shift_x_ + (P_PARAM_N >> scroll) <= P_PARAM_N) begin
+				shift_x <= shift_x_;
+			end else begin
+				shift_x_ <= P_PARAM_N - (P_PARAM_N >> scroll);
+			end
 			if (scancode_valid) begin
 				if (last_code != 8'b11110000) begin
 					casez(scancode)
@@ -106,13 +123,33 @@ module KeyBoardController
 							running <= 0;
 							manual <= 0;
 						end
+						8'b01000001 : begin
+							// 按下<键
+							if (evo_left_shift < 4'd5) begin
+								evo_left_shift <= evo_left_shift + 4'd1;
+							end
+						end
+						8'b01001001 : begin
+							// 按下>键
+							if (evo_left_shift > 4'd0) begin
+								evo_left_shift <= evo_left_shift - 4'd1;
+							end
+						end
 						8'b01001110 : begin
 							// 按下-键
-							scroll <= scroll - 3'd1;
+							if (scroll > 3'd0) begin
+								scroll <= scroll - 3'd1;
+								shift_x_ <= shift_x_ - (P_PARAM_N >> (scroll + 3'd1));
+								shift_y_ <= shift_y_ - (P_PARAM_M >> (scroll + 3'd1));
+							end
 						end
 						8'b01010101 : begin
 							// 按下+键
-							scroll <= scroll + 3'd1;
+							if (scroll < 3'd5) begin
+								scroll <= scroll + 3'd1;
+								shift_x_ <= shift_x_ + (P_PARAM_N >> (scroll + 3'd2));
+								shift_y_ <= shift_y_ + (P_PARAM_M >> (scroll + 3'd2));
+							end
 						end
 						8'b00111010 : begin
 							// 按下M键
@@ -139,8 +176,8 @@ module KeyBoardController
 								setting <= 4'b0001;
 								// 不改变其他状态
 							end else begin
-								if (shift_x > 16'd0) begin
-									shift_x <= shift_x - 16'b1;
+								if (shift_x_ > 16'd0) begin
+									shift_x_ <= shift_x_ - 16'b1;
 								end
 							end
 						end
@@ -151,8 +188,8 @@ module KeyBoardController
 								setting <= 4'b0010;
 								// 不改变其他状态
 							end else begin
-								if (shift_y > 16'd0) begin
-									shift_y <= shift_y - 16'b1;
+								if (shift_y_ > 16'd0) begin
+									shift_y_ <= shift_y_ - 16'b1;
 								end
 							end
 						end
@@ -163,8 +200,8 @@ module KeyBoardController
 								setting <= 4'b0100;
 								// 不改变其他状态
 							end else begin
-								if (shift_y + (P_PARAM_M >> scroll) < P_PARAM_M) begin
-									shift_y <= shift_y + 16'b1;
+								if (shift_y_ + (P_PARAM_M >> scroll) < P_PARAM_M) begin
+									shift_y_ <= shift_y_ + 16'b1;
 								end
 							end
 						end
@@ -175,8 +212,8 @@ module KeyBoardController
 								setting <= 4'b1000;
 								// 不改变其他状态
 							end else begin
-								if (shift_x + (P_PARAM_N >> scroll) < P_PARAM_N) begin
-									shift_x <= shift_x + 16'b1;
+								if (shift_x_ + (P_PARAM_N >> scroll) < P_PARAM_N) begin
+									shift_x_ <= shift_x_ + 16'b1;
 								end
 							end
 						end

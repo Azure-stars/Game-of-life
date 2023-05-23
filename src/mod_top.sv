@@ -41,6 +41,7 @@ reg[7:0] output_video_blue;     // 输出的像素颜色
 reg[7:0] output_video_green;    // 输出的像素颜色
 
 reg[30:0] evo_cnt;              // 1Hz时钟的计数器
+reg[3:0] evo_left_shift;
 
 
 reg[4:0] ram_read_data;         // ram读取的数据
@@ -123,7 +124,7 @@ always @ (posedge clk_vga, posedge reset_btn) begin
     end
     else begin
         if (state == STATE_RUNNING) begin
-            if (evo_cnt == 9999999) begin
+            if (evo_cnt >= (30'd9999999 << evo_left_shift)) begin
                 if (clk_evo == 0) begin
                     clk_evo <= 1;
                 end else begin
@@ -302,17 +303,17 @@ Init #(P_PARAM_M, P_PARAM_N, 12) init(
 assign manual_flag = (state == STATE_SETTING);
 assign video_clk = clk_vga;
 vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1, P_PARAM_N, P_PARAM_M) vga800x600at50 (
-    .clk(clk_vga),
-    .vga_live(vga_read_val),
-    .setting_status(manual_flag),
-    .setting_pos(setting_pos),
-    .pos(vga_pos),
-    .video_red(output_video_red),
-    .video_green(output_video_blue),
-    .video_blue(output_video_green),
-    .hsync(video_hsync),
-    .vsync(video_vsync),
-    .data_enable(video_de),
+	.clk(clk_vga),
+	.vga_live(vga_read_val),
+	.setting_status(manual_flag),
+	.setting_pos(setting_pos),
+	.pos(vga_pos),
+	.video_red(output_video_red),
+	.video_green(output_video_blue),
+	.video_blue(output_video_green),
+	.hsync(video_hsync),
+	.vsync(video_vsync),
+	.data_enable(video_de),
 	.shift_x   (shift_x),
 	.shift_y   (shift_y),
 	.scroll    (scroll)
@@ -328,19 +329,20 @@ vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1, P_PARAM_N, P_PARAM_M) v
 reg [15:0] file_id;
 
 KeyBoardController #(P_PARAM_N, P_PARAM_M) keyboard_controller (
-    .clk_in    (clk_vga),
-    .reset     (reset_btn),
-    .ps2_clock (ps2_clock),
-    .ps2_data  (ps2_data),
+	.clk_in    (clk_vga),
+	.reset     (reset_btn),
+	.ps2_clock (ps2_clock),
+	.ps2_data  (ps2_data),
 	.pause     (pause),
 	.start     (start),
 	.clear     (clear),
-    .manual(manual),
-    .setting(manual_forward),
+	.manual(manual),
+	.setting(manual_forward),
 	.file_id   (file_id),
 	.shift_x   (shift_x),
 	.shift_y   (shift_y),
-	.scroll    (scroll)
+	.scroll    (scroll),
+	.evo_left_shift (evo_left_shift)
 );
 
 // SD卡
