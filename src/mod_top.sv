@@ -469,7 +469,7 @@ always_comb begin
 end 
 
 // 调试
-assign leds[31:18] = {2'b00, setting_pos[11:0]};
-assign leds[17:0] = { file_id[7:0], manual_forward[3:0], manual, init_finish, state, pause, start, clear};  // read_file_finish
+assign leds[31:19] = {2'b00, setting_pos[11:0]};
+assign leds[18:0] = { file_id[7:0], manual_forward[3:0], manual, preset_finish, init_finish, state, pause, start, clear};  // read_file_finish
 
 endmodule
