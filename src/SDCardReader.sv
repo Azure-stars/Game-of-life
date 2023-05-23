@@ -55,14 +55,12 @@ module SDCardReader
 		if (reset) begin
 			current_file_id <= file_id;
   			block_id <= {32'b0, file_id, 7'b0};
-			// target_block_id <= {32'b0, file_id + 16'd1, 7'b0};
-  			// block_id <= 32'b0;
 
 			rden <= 0;
 			wren <= 0;
 			read_file_finish <= 0;
 			write_bit <= 32'b0;
-			address <= 32'b11111111111111111111111111111111;
+			address <= 32'b0;
 			execute <= 0;
 		end else begin
 			if (read_file_finish == 0) begin
@@ -76,22 +74,18 @@ module SDCardReader
 					STATE_FINISH: begin
 						if (execute == 0) begin
 							if (wren == 1) begin
-								write_data <= mem[{write_bit[11:3]}][write_bit[2:0]];
+								write_data <= mem[write_bit[11:3]][write_bit[2:0]];
 								write_bit <= write_bit + 32'b1;
 								address <= address + 32'b1;
-								if (write_bit[12:0] == 32'd4096) begin
+								if (write_bit[11:0] == 12'd4095) begin
 									wren <= 0;
 									execute <= 1;
-									block_id <= block_id + 32'd1;
-									//if (block_id == 32'd1) begin
-									//	 read_file_finish <= 1;
-									//end
 									if (block_id[6:0] == 7'd127) begin
 										 read_file_finish <= 1;
 									end
-									//if (block_id == target_block_id) begin
-									//	 read_file_finish <= 1;
-									//end
+									else begin
+										block_id <= block_id + 32'd1;
+									end
 								end
 							end else begin
 								wren <= 1;
@@ -108,13 +102,11 @@ module SDCardReader
 					current_file_id <= file_id;
 					read_file_finish <= 0;
 					block_id <= {32'b0, file_id, 7'b0};
-					// target_block_id <= {32'b0, file_id + 16'd1, 7'b0};
-					// block_id <= 32'b0;
 					rden <= 0;
 					wren <= 0;
 
 					write_bit <= 32'b0;
-			      	address <= 32'b11111111111111111111111111111111;
+					address <= 32'b0;
 					execute <= 0;
 				end
 			end
