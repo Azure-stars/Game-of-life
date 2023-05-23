@@ -327,7 +327,7 @@ vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1, P_PARAM_N, P_PARAM_M) v
 
 reg [15:0] file_id;
 
-KeyBoardController keyboard_controller (
+KeyBoardController #(P_PARAM_N, P_PARAM_M) keyboard_controller (
     .clk_in    (clk_vga),
     .reset     (reset_btn),
     .ps2_clock (ps2_clock),

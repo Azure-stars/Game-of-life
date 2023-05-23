@@ -1,4 +1,5 @@
 module KeyBoardController
+#(parameter P_PARAM_N = 0, P_PARAM_M = 0)
 (
 	input  wire clk_in,  // 50Mhz
 	input  wire reset,   // reset_btn
@@ -13,7 +14,7 @@ module KeyBoardController
 
 	output reg [15:0] shift_x,
 	output reg [15:0] shift_y,
-	output reg [1:0] scroll
+	output reg [2:0] scroll
 );
 	
 	wire [7:0] scancode;  // PS2
@@ -45,7 +46,7 @@ module KeyBoardController
 			
 			shift_x <= 16'd0;
 			shift_y <= 16'd0;
-			scroll <= 2'd0;
+			scroll <= 3'd0;
 			
 			last_code <= 8'd0;
 		end else begin
@@ -107,11 +108,11 @@ module KeyBoardController
 						end
 						8'b01001110 : begin
 							// 按下-键
-							scroll <= scroll - 2'd1;
+							scroll <= scroll - 3'd1;
 						end
 						8'b01010101 : begin
 							// 按下+键
-							scroll <= scroll + 2'd1;
+							scroll <= scroll + 3'd1;
 						end
 						8'b00111010 : begin
 							// 按下M键
@@ -138,7 +139,9 @@ module KeyBoardController
 								setting <= 4'b0001;
 								// 不改变其他状态
 							end else begin
-								shift_x <= shift_x - 16'b1;
+								if (shift_x > 16'd0) begin
+									shift_x <= shift_x - 16'b1;
+								end
 							end
 						end
 						8'b00011101: begin
@@ -148,7 +151,9 @@ module KeyBoardController
 								setting <= 4'b0010;
 								// 不改变其他状态
 							end else begin
-								shift_y <= shift_y - 16'b1;
+								if (shift_y > 16'd0) begin
+									shift_y <= shift_y - 16'b1;
+								end
 							end
 						end
 						8'b00011011: begin
@@ -158,7 +163,9 @@ module KeyBoardController
 								setting <= 4'b0100;
 								// 不改变其他状态
 							end else begin
-								shift_y <= shift_y + 16'b1;
+								if (shift_y + (P_PARAM_M >> scroll) < P_PARAM_M) begin
+									shift_y <= shift_y + 16'b1;
+								end
 							end
 						end
 						8'b00100011: begin
@@ -168,7 +175,9 @@ module KeyBoardController
 								setting <= 4'b1000;
 								// 不改变其他状态
 							end else begin
-								shift_x <= shift_x + 16'b1;
+								if (shift_x + (P_PARAM_N >> scroll) < P_PARAM_N) begin
+									shift_x <= shift_x + 16'b1;
+								end
 							end
 						end
 						default: begin
