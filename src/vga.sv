@@ -33,12 +33,17 @@ module vga
     output wire data_enable
 );
 
+reg [7:0] cell_color [2:0];
+
 reg[WIDTH - 1:0] hdata;
 reg[WIDTH - 1:0] vdata;
 // 当前一个像素大小为32
 parameter PIXIV = HSIZE / P_PARAM_N;
 parameter ALL_COL = HMAX / PIXIV;
 initial begin
+    cell_color[0] <= 8'd255;
+    cell_color[1] <= 8'd255;
+    cell_color[2] <= 8'd255;
     hdata = 0;
     vdata = 0;
     video_green = 0 ;
@@ -81,7 +86,7 @@ always @ (posedge clk) begin
     end
     else if (hdata == HMAX - 2) begin
         if (vdata < VSIZE - 1) begin
-            pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N + 1;  // {vdata, 9'd0} + {vdata, 8'd0} + {vdata, 5'd0}
+            pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N + 1;
         end
         else begin
             // vdata为VMAX的情况被包含了
@@ -90,7 +95,7 @@ always @ (posedge clk) begin
     end
     else if (hdata == HMAX - 1) begin
         if (vdata < VSIZE - 1) begin
-            pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N + 2;  // {vdata, 9'd0} + {vdata, 8'd0} + {vdata, 5'd0}
+            pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N + 2;
         end
         else if (vdata == VMAX - 1) begin
             pos <= 1;
@@ -102,6 +107,11 @@ always @ (posedge clk) begin
     else begin
         pos <= 0;
     end
+	 cell_color[0] <= {pos[4:0], pos[7:5]};
+	 cell_color[1] <= {pos[2:0], pos[7:3]};
+	 // cell_color[0] <= {1'b1, pos[4:1], pos[7:5]};
+	 // cell_color[1] <= {1'b1, pos[2:1], pos[7:3]};
+	 // cell_color[2] <= {1'b1, pos[6:0]};
 end
 always @ (posedge clk)
 begin
@@ -114,9 +124,12 @@ begin
                 video_blue <= 8'b00000000;
             end
             else begin
-                video_red   <= 8'b11111111;
-                video_green <= 8'b11111111;
-                video_blue  <= 8'b11111111; 
+                // video_red   <= 8'b11111111;
+                // video_green <= 8'b11111111;
+                // video_blue  <= 8'b11111111;
+                video_red   <= cell_color[0];
+                video_green <= cell_color[1];
+                video_blue  <= cell_color[2];
             end
         end
         else begin
