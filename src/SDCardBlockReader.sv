@@ -61,7 +61,6 @@ module SDCardBlockReader  // 读取编号为block_id的block中的数据(512 * 8
 			  sdc_read <= 1'b0;
 			  sdc_write <= 1'b0;
 			  sdc_write_data <= 8'b0;
-
 			  state_reg <= STATE_INIT;
 			  write_byte <= 10'b0;
 		 end else if (reset) begin

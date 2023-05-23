@@ -71,7 +71,32 @@ initial begin
     pos = 0;
 end
 always @ (posedge clk) begin
-    pos <= vdata[WIDTH - 1: 0] * P_PARAM_N + hdata[WIDTH - 1: 0];
+    if (hdata < HSIZE) begin
+        pos <= vdata * P_PARAM_N + hdata + 2;
+    end
+    else if (hdata == HMAX - 2) begin
+        if (vdata < VSIZE - 1) begin
+            pos <= vdata * P_PARAM_N + 1;
+        end
+        else begin
+            // vdata为VMAX的情况被包含了
+            pos <= 0;
+        end
+    end
+    else if (hdata == HMAX - 1) begin
+        if (vdata < VSIZE - 1) begin
+            pos <= vdata * P_PARAM_N + 2;
+        end
+        else if (vdata == VMAX - 1) begin
+            pos <= 1;
+        end
+        else begin
+            pos <= 0;
+        end
+    end
+    else begin
+        pos <= 0;
+    end
 end
 always @ (posedge clk)
 begin

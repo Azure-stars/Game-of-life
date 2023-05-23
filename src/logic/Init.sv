@@ -48,7 +48,6 @@ module Init #(
                 // 这个地方已经成功读取到了值
                 write_val <= read_val;
                 write_en <= 1;
-                read_addr <= read_addr + 1;
                 state <= STATE_WRITE;
             end
             // STATE_CALC : begin
