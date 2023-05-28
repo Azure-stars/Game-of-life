@@ -128,7 +128,7 @@ always @ (posedge clk_vga, posedge reset_btn) begin
     end
     else begin
         if (state == STATE_RUNNING) begin
-            if (evo_cnt >= (30'd9999999 << evo_left_shift)) begin
+            if (evo_cnt >= (30'd2499999 << evo_left_shift)) begin
                 if (clk_evo == 0) begin
                     clk_evo <= 1;
                 end else begin

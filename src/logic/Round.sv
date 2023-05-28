@@ -32,8 +32,7 @@ parameter P_READ_STATE_6 = 7;
 parameter P_READ_STATE_7 = 8;
 parameter P_READ_STATE_8 = 9;
 parameter P_CALC = 10;
-parameter P_WRITE = 11;
-parameter P_FINISH = 12;
+parameter P_FINISH = 11;
 reg[3:0] last_read_state;       // 上一次读取到的位置
 reg[3:0] read_state;     // 用于RAM读取的状态
 reg[3:0] end_state;      // 结束读取位置，不包括自己
@@ -103,61 +102,23 @@ always @ (posedge clk, posedge rst) begin
         end
     end
     else if (read_state == P_READ_STATE_0) begin
-        // round_read_pos = round_write_pos;
-        // read_state <= P_CALC;
-        if (center_hdata == 0) begin
-            // 第0列
-            if (center_vdata == 0) begin
-                // 第0行
-                round_read_pos <= round_read_pos + 1;
-                read_state <= P_READ_STATE_1;
-                end_state <= P_READ_STATE_3;
-            end
-            else if (center_vdata == P_PARAM_M - 1) begin
-                // 最后一行
-                round_read_pos <= round_read_pos - P_PARAM_N;
-                read_state <= P_READ_STATE_7;
-                end_state <= P_READ_STATE_1;
-            end
-            else begin
-                round_read_pos <= round_read_pos - P_PARAM_N;
-                read_state <= P_READ_STATE_7;
-                end_state <= P_READ_STATE_3;
-            end
+        // 仅会在第一列的时候到达这个状态
+        if (center_vdata == 0) begin
+            // 第0行
+            round_read_pos <= round_read_pos + 1;
+            read_state <= P_READ_STATE_1;
+            end_state <= P_READ_STATE_3;
         end
-        else if (center_hdata == P_PARAM_N - 1) begin
-            if (center_vdata == 0) begin
-                round_read_pos <= round_read_pos + P_PARAM_N;
-                read_state <= P_READ_STATE_3;
-                end_state <= P_READ_STATE_5;
-            end
-            else if (center_vdata == P_PARAM_M - 1) begin
-                round_read_pos <= round_read_pos - 1;
-                read_state <= P_READ_STATE_5;
-                end_state <= P_READ_STATE_7;
-            end
-            else begin
-                round_read_pos <= round_read_pos + P_PARAM_N;
-                read_state <= P_READ_STATE_3;
-                end_state <= P_READ_STATE_7;
-            end
+        else if (center_vdata == P_PARAM_M - 1) begin
+            // 最后一行
+            round_read_pos <= round_read_pos - P_PARAM_N;
+            read_state <= P_READ_STATE_7;
+            end_state <= P_READ_STATE_1;
         end
         else begin
-            if (center_vdata == 0) begin
-                round_read_pos <= round_read_pos + 1;
-                read_state <= P_READ_STATE_1;
-                end_state <= P_READ_STATE_5;
-            end
-            else if (center_vdata == P_PARAM_M - 1) begin
-                round_read_pos <= round_read_pos - 1;
-                read_state <= P_READ_STATE_5;
-                end_state <= P_READ_STATE_1;
-            end
-            else begin
-                round_read_pos <= round_read_pos + 1;
-                read_state <= P_READ_STATE_1;
-                end_state <= P_READ_STATE_8;
-            end
+            round_read_pos <= round_read_pos - P_PARAM_N;
+            read_state <= P_READ_STATE_7;
+            end_state <= P_READ_STATE_3;
         end
     end  
     else if (read_state == P_READ_STATE_1 || read_state == P_READ_STATE_8) begin
@@ -210,7 +171,7 @@ always @ (posedge clk, posedge rst) begin
     end
     else if (read_state == P_READ_STATE_6 || read_state == P_READ_STATE_7) begin
         if (read_state == end_state) begin
-            read_state <= P_CALC;     // 待读取完这个位置之后，读取完毕
+            read_state <= P_CALC;     
         end
         else begin
             // 否则更新读取位置
@@ -227,16 +188,14 @@ always @ (posedge clk, posedge rst) begin
     else if (read_state == P_CALC) begin
         // 到达这个状态时，所有读取完毕
         wden <= 1;
-        read_state <= P_WRITE;
-    end
-    else if (read_state == P_WRITE) begin
-        wden <= 0;
         read_state <= P_FINISH;
     end
     else begin
+        wden <= 0;
         // P_FINISH
         if (center_hdata == P_PARAM_N - 1) begin
             if (center_vdata == P_PARAM_M - 1) begin
+                // 都读完了你管他干嘛
                 center_vdata <= 0;
                 round_read_pos <= 0;
                 round_write_pos <= 0;
@@ -248,17 +207,50 @@ always @ (posedge clk, posedge rst) begin
                 round_write_pos <= round_write_pos + 1;
                 center_vdata <= center_vdata + 1;
                 read_state <= P_READ_STATE_0;
+                // 此时要读取新的六个点，将转接工作交给了P_READ_STATE_0
+                // 我们这边负责清空即可
             end
+            status <= 0;
             center_hdata <= 0;
         end
         else begin
-            round_read_pos <= round_write_pos + 1;
+            // 同一行进行右移
+            // status不需要考虑越界的问题，反正都是0
             round_write_pos <= round_write_pos + 1;
             center_hdata <= center_hdata + 1;
-            read_state <= P_READ_STATE_0;
+            status[6] <= status[7];
+            status[5] <= status[0];
+            status[4] <= status[3];
+            status[7] <= status[8];
+            status[0] <= status[1];
+            status[3] <= status[2];
+            status[8] <= 0;
+            status[1] <= 0;
+            status[2] <= 0;
+            if (center_hdata == P_PARAM_N - 2) begin
+                // 不需要读取了，直接计算
+                wden <= 1;
+                read_state <= P_FINISH;
+            end 
+            else begin
+                if (center_vdata == 0) begin
+                    // 读取新的三个点
+                    round_read_pos <= round_write_pos + 2;
+                    read_state <= P_READ_STATE_1;
+                    end_state <= P_READ_STATE_2;
+                end
+                else if (center_vdata == P_PARAM_M - 1) begin
+                    round_read_pos <= round_write_pos + 2 - P_PARAM_N;
+                    read_state <= P_READ_STATE_8;
+                    end_state <= P_READ_STATE_1;
+                end
+                else begin
+                    round_read_pos <= round_write_pos + 2 - P_PARAM_N;
+                    read_state <= P_READ_STATE_8;
+                    end_state <= P_READ_STATE_2;
+                end
+            end
         end
-        // 下一个时钟周期才会清零，不会影响当前的周期
-        status[8:1] <= 0;
     end
     end 
 end

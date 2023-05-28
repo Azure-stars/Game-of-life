@@ -218,9 +218,6 @@ module KeyBoardController
 							end
 						end
 						default: begin
-	//						     pause <= 1;
-	//							  start <= 0;
-	//							  clear <= 0;
 						end
 					endcase
 				end
