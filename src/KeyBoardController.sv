@@ -1,5 +1,5 @@
 module KeyBoardController
-#(parameter P_PARAM_N = 0, P_PARAM_M = 0)
+#(parameter P_PARAM_N = 0, P_PARAM_M = 0, WIDTH = 12)
 (
 	input  wire clk_in,  // 50Mhz
 	input  wire reset,   // reset_btn
@@ -9,13 +9,17 @@ module KeyBoardController
 	output reg start,
 	output reg clear,
 	output reg manual,				// 手动设置
-	output reg [3:0] setting,		// 手动设置状态下的移动，0b0001为A，0b0010为W，0b0100为S，0b1000为D
 	output reg [15:0] file_id,
 
-	output reg [15:0] shift_x,
-	output reg [15:0] shift_y,
+	output reg [WIDTH - 1:0] shift_x,
+	output reg [WIDTH - 1:0] shift_y,
 	output reg [2:0] scroll,
-	output reg [3:0] evo_left_shift
+	output reg [3:0] evo_left_shift,
+
+	output reg [WIDTH - 1:0] setting_hdata,
+	output reg [WIDTH - 1:0] setting_vdata,
+	output reg [2 * WIDTH - 1:0] setting_pos,	
+	output reg modify			// 按下空格键之后手动修改
 );
 	
 	wire [7:0] scancode;  // PS2
@@ -37,6 +41,12 @@ module KeyBoardController
 		.scancode  (scancode      ),
 		.valid     (scancode_valid)
 	);
+
+	initial begin
+		setting_hdata = P_PARAM_N / 2;
+		setting_vdata = P_PARAM_M / 2;
+		setting_pos = P_PARAM_N / 2 + (P_PARAM_M / 2 * P_PARAM_N);
+	end
 
 	always @(posedge clk_in or posedge reset) begin
 		if (reset) begin
@@ -154,26 +164,20 @@ module KeyBoardController
 						8'b00111010 : begin
 							// 按下M键
 							if (running == 0) begin
-								manual <= 1;
 								clear <= 0;
 								start <= 0;
 								pause <= 0;
-							end
-						end
-						8'b00110001 : begin
-							// 按下N键
-							if (manual == 1) begin
-								manual <= 0;
-								clear <= 0;
-								start <= 0;
-								pause <= 0;
+								manual <= ~manual;
 							end
 						end
 						8'b00011100: begin
 							// 按下A键
 							if (manual == 1) begin
 								// 仅在非运行状态下才可以使用手动设置
-								setting <= 4'b0001;
+								if (setting_hdata >= 0) begin
+									setting_hdata <= setting_hdata - 1;
+									setting_pos <= setting_pos - 1;
+								end
 								// 不改变其他状态
 							end else begin
 								if (shift_x_ > 16'd0) begin
@@ -185,7 +189,10 @@ module KeyBoardController
 							// 按下W键
 							if (manual == 1) begin
 								// 仅在非运行状态下才可以使用手动设置
-								setting <= 4'b0010;
+								if (setting_vdata > 0) begin
+									setting_vdata <= setting_vdata - 1;
+									setting_pos <= setting_pos - P_PARAM_N;
+								end
 								// 不改变其他状态
 							end else begin
 								if (shift_y_ > 16'd0) begin
@@ -197,7 +204,10 @@ module KeyBoardController
 							// 按下S键
 							if (manual == 1) begin
 								// 仅在非运行状态下才可以使用手动设置
-								setting <= 4'b0100;
+								if (setting_vdata < P_PARAM_M - 1) begin
+									setting_vdata <= setting_vdata + 1;
+									setting_pos <= setting_pos + P_PARAM_N;
+								end
 								// 不改变其他状态
 							end else begin
 								if (shift_y_ + (P_PARAM_M >> scroll) < P_PARAM_M) begin
@@ -209,7 +219,10 @@ module KeyBoardController
 							// 按下D键
 							if (manual == 1) begin
 								// 仅在非运行状态下才可以使用手动设置
-								setting <= 4'b1000;
+								if (setting_hdata < P_PARAM_N - 1) begin
+									setting_hdata <= setting_hdata + 1;
+									setting_pos <= setting_pos + 1;
+								end
 								// 不改变其他状态
 							end else begin
 								if (shift_x_ + (P_PARAM_N >> scroll) < P_PARAM_N) begin
@@ -217,9 +230,18 @@ module KeyBoardController
 								end
 							end
 						end
+						8'b00101001 : begin
+							// 按下空格
+							if (manual == 1) begin
+								modify <= 1;
+							end
+						end
 						default: begin
 						end
 					endcase
+				end
+				else begin
+					modify <= 0;
 				end
 				last_code <= scancode;
 				if (running == 0) begin
@@ -237,6 +259,7 @@ module KeyBoardController
 				// pause <= 0;
 				// start <= 0;
 				// clear <= 0;
+				modify <= 0;
 				if (counter == 16'b1111111111111111) begin
 					counter <= 0;
 					pause <= 0;
