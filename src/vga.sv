@@ -107,11 +107,11 @@ always @ (posedge clk) begin
     else begin
         pos <= 0;
     end
-	 cell_color[0] <= {pos[4:0], pos[7:5]};
-	 cell_color[1] <= {pos[2:0], pos[7:3]};
-	 // cell_color[0] <= {1'b1, pos[4:1], pos[7:5]};
-	 // cell_color[1] <= {1'b1, pos[2:1], pos[7:3]};
-	 // cell_color[2] <= {1'b1, pos[6:0]};
+    cell_color[0] <= {pos[4:0], pos[7:5]};
+    cell_color[1] <= {pos[2:0], pos[7:3]};
+    // cell_color[0] <= {1'b1, pos[4:1], pos[7:5]};
+    // cell_color[1] <= {1'b1, pos[2:1], pos[7:3]};
+    // cell_color[2] <= {1'b1, pos[6:0]};
 end
 always @ (posedge clk)
 begin

@@ -84,8 +84,6 @@ reg preset_read_val;
 reg [11:0]setting_hdata;          // 手动写入的位置        
 reg [11:0]setting_vdata;    
 reg [23:0]setting_pos;              
-wire manual_flag;              // 是否处于手动写入的状态
-reg [3:0] manual_forward;       // 手动按键设置方向
 reg manual_wden;                // 手动写入的使能
 reg manual_read_val;            // 手动读入的值
 reg manual_write_val;           // 手动写入的值
@@ -182,40 +180,7 @@ always @ (posedge clk_vga, posedge reset_btn) begin
                     state <= prev_state;
                 end
                 else begin
-                    if (manual_forward != 0) begin
-                        case (manual_forward)
-                            4'b0001 : begin
-                                // A键
-                                if (setting_hdata != 0) begin
-                                    setting_pos <= setting_pos - 1;
-                                    setting_hdata <= setting_hdata - 1;
-                                end
-                            end
-                            4'b0010 : begin
-                                // 按下W键
-                                if (setting_vdata > 0) begin
-                                    setting_pos <= setting_pos - P_PARAM_N;
-                                    setting_vdata <= setting_vdata - 1;
-                                end
-                            end
-                            4'b0100 : begin
-                                // 按下S键
-                                if (setting_vdata < P_PARAM_M - 1) begin
-                                    setting_pos <= setting_pos + P_PARAM_N;
-                                    setting_vdata <= setting_vdata + 1;
-                                end
-                            end
-                            4'b1000 : begin
-                                // 按下D键
-                                if (setting_hdata < P_PARAM_N - 1) begin
-                                    setting_pos <= setting_pos + 1;
-                                    setting_hdata <= setting_hdata + 1;
-                                end
-                            end
-                            default: begin
-                            end 
-                        endcase
-                    end
+                    state <= STATE_SETTING;
                 end
             end
             default: begin
@@ -314,12 +279,11 @@ Init #(P_PARAM_M, P_PARAM_N, 12) init(
     .write_addr(init_write_pos),
     .finish(init_finish)
 );
-assign manual_flag = (state == STATE_SETTING);
 assign video_clk = clk_vga;
 vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1, P_PARAM_N, P_PARAM_M) vga800x600at50 (
 	.clk(clk_vga),
 	.vga_live(vga_read_val),
-	.setting_status(manual_flag),
+	.setting_status(manual),
 	.setting_pos(setting_pos),
 	.pos(vga_pos),
 	.video_red(output_video_red),
@@ -336,6 +300,7 @@ vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1, P_PARAM_N, P_PARAM_M) v
 // Manual #(P_PARAM_M, P_PARAM_N, 12) manual_io (
 //     .clk(clk_vga),
 //     .modify(modify),
+//     .read_val()
 // )
 
 // // 键盘控制模块
@@ -351,14 +316,17 @@ KeyBoardController #(P_PARAM_N, P_PARAM_M) keyboard_controller (
 	.start     (start),
 	.clear     (clear),
 	.manual(manual),
-	.setting(manual_forward),
 	.file_id   (file_id),
 	.reload     (reload),
 	.shift_x   (shift_x),
 	.shift_y   (shift_y),
 	.scroll    (scroll),
 	.evo_left_shift (evo_left_shift),
-	.dpy_number (dpy_number)
+	.dpy_number (dpy_number),
+   .setting_hdata  (setting_hdata),
+   .setting_vdata  (setting_vdata),
+   .setting_pos    (setting_pos),
+   .modify         (modify)
 );
 
 // SD卡
@@ -465,13 +433,13 @@ assign round_read_val = (clk_evo == 1) ? ram_read_data[0] : ram_read_data[2];
 assign init_read_val = ram_read_data[4];
 always_comb begin
     if (state == STATE_RST && (init_finish == 0 || preset_finish == 0)) begin
-        vga_read_val = 8'b11111111;
+        vga_read_val = 8'b00000000;
     end
     else begin
         vga_read_val = (clk_evo == 1) ? ram_read_data[1] : ram_read_data[3];
     end
 end
-
+assign manual_read_val = (clk_evo == 1) ? ram_read_data[1] : ram_read_data[3];
 // assign vga_read_val = (pause == 1) ?  1 : 0;
 
 // 后续实现预设写入则使用注释代码，而非当前代码，需要对输出值进行控制
@@ -545,7 +513,7 @@ always_comb begin
 end 
 
 // 调试
-assign leds[31:19] = {2'b00, setting_pos[11:0]};
-assign leds[18:0] = { file_id[7:0], manual_forward[3:0], manual, preset_finish, init_finish, state, pause, start, clear};  // read_file_finish
+assign leds[31:19] = {setting_hdata[11:0]};
+assign leds[14:0] = { file_id[7:0], manual, preset_finish, init_finish, state, pause, start, clear};  // read_file_finish
 
 endmodule
