@@ -15,6 +15,7 @@ module SDCardReader
 	output reg         rden,
 	output reg         wren,
 	input wire         read_data,
+	input wire         reload,
 	
 
 	
@@ -97,7 +98,7 @@ module SDCardReader
 					end
 			  endcase
 			end else begin
-				if (file_id == current_file_id) begin
+				if (file_id == current_file_id && reload == 0) begin
 				end else begin
 					current_file_id <= file_id;
 					read_file_finish <= 0;

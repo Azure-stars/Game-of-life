@@ -105,6 +105,7 @@ reg pause;                          // 本周期的暂停按钮是否被按下
 reg clear;                          // 本周期的清空按钮是否被按下
 reg manual;                         // 本周起的手动设置按钮是否被按下
 reg modify;                         // 本周期的修改按钮是否被按下    
+reg reload;                         // 重新加载当前文件
 
 // 放缩平移
 reg [15:0] shift_x;
@@ -352,6 +353,7 @@ KeyBoardController #(P_PARAM_N, P_PARAM_M) keyboard_controller (
 	.manual(manual),
 	.setting(manual_forward),
 	.file_id   (file_id),
+	.reload     (reload),
 	.shift_x   (shift_x),
 	.shift_y   (shift_y),
 	.scroll    (scroll),
@@ -378,6 +380,8 @@ SDCardReader sd_card_reader(
 	.rden    (preset_rden),
 	.wren    (preset_wden),
 	.read_data       (preset_read_val),
+	
+	.reload             (reload),
 	.file_id            (file_id),
 	.read_file_finish   (preset_finish)
 );

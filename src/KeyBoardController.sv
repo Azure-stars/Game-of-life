@@ -11,7 +11,8 @@ module KeyBoardController
 	output reg manual,				// 手动设置
 	output reg [3:0] setting,		// 手动设置状态下的移动，0b0001为A，0b0010为W，0b0100为S，0b1000为D
 	output reg [15:0] file_id,
-
+	output reg reload,
+	
 	output reg [15:0] shift_x,
 	output reg [15:0] shift_y,
 	output reg [2:0] scroll,
@@ -29,6 +30,7 @@ module KeyBoardController
 
 	reg [15:0] shift_x_;
 	reg [15:0] shift_y_;
+	reg [15:0] shift_gird_size;
 	
 	reg [0:0] file_id_pos;  // 当前输入的file id十进制位
 	reg [3:0] file_id_dig[1:0];  // 当前输入的file id十进制数
@@ -45,7 +47,8 @@ module KeyBoardController
 	assign target_file_id = (file_id_pos == 1'd0) ? file_id_dig[1] + (file_id_dig[0] << 3) + (file_id_dig[0] << 1) : target_file_id;
 	assign dpy_number[3:0] = (file_id_pos == 1'd0) ? file_id_dig[1] : file_id_dig[0];
 	assign dpy_number[7:4] = (file_id_pos == 1'd0) ? file_id_dig[0] : 4'd0;
-
+	assign shift_gird_size = (scroll <= 4) ? (16'd16 >> scroll) : 1;
+	
 	always @(posedge clk_in or posedge reset) begin
 		if (reset) begin
 			running <= 0;
@@ -53,6 +56,7 @@ module KeyBoardController
 			start <= 0;
 			clear <= 0;
 			file_id <= 16'd0;
+			reload <= 0;
 			// target_file_id <= 16'd0;
 			counter <= 0;
 			
@@ -173,8 +177,8 @@ module KeyBoardController
 							 running <= 0;
 							 manual <= 0;
 							 file_id_pos <= 1'd0;
-			             file_id_dig[0] <= 8'd0;
-			             file_id_dig[1] <= 8'd0;
+			             // file_id_dig[0] <= 8'd0;
+			             // file_id_dig[1] <= 8'd0;
 						  end
 						end
 						8'b01011010: begin
@@ -185,21 +189,22 @@ module KeyBoardController
 						    running <= 1;
 						    manual <= 0;
 							 file_id_pos <= 1'd0;
-			             file_id_dig[0] <= 8'd0;
-			             file_id_dig[1] <= 8'd0;
+			             // file_id_dig[0] <= 8'd0;
+			             // file_id_dig[1] <= 8'd0;
 						  end
 						end
 						8'b00101101: begin
-						   // Reset
-							// target_file_id <= 16'd0;
-							clear <= 1;
-							start <= 0;
-							pause <= 0;
-							running <= 0;
-							manual <= 0;
-							file_id_pos <= 1'd0;
-			            file_id_dig[0] <= 8'd0;
-			            file_id_dig[1] <= 8'd0;
+						  // Reset
+						  // target_file_id <= 16'd0;
+						  clear <= 1;
+						  start <= 0;
+						  pause <= 0;
+						  running <= 0;
+						  manual <= 0;
+						  file_id_pos <= 1'd0;
+						  reload <= 1;
+			           // file_id_dig[0] <= 8'd0;
+			           // file_id_dig[1] <= 8'd0;
 						end
 						8'b01000001 : begin
 							// 按下<键
@@ -254,8 +259,8 @@ module KeyBoardController
 								setting <= 4'b0001;
 								// 不改变其他状态
 							end else begin
-								if (shift_x_ > 16'd0) begin
-									shift_x_ <= shift_x_ - 16'b1;
+								if (shift_x_ >= shift_gird_size) begin
+									shift_x_ <= shift_x_ - shift_gird_size;
 								end
 							end
 						end
@@ -266,8 +271,8 @@ module KeyBoardController
 								setting <= 4'b0010;
 								// 不改变其他状态
 							end else begin
-								if (shift_y_ > 16'd0) begin
-									shift_y_ <= shift_y_ - 16'b1;
+								if (shift_y_ >= shift_gird_size) begin
+									shift_y_ <= shift_y_ - shift_gird_size;
 								end
 							end
 						end
@@ -278,8 +283,8 @@ module KeyBoardController
 								setting <= 4'b0100;
 								// 不改变其他状态
 							end else begin
-								if (shift_y_ + (P_PARAM_M >> scroll) < P_PARAM_M) begin
-									shift_y_ <= shift_y_ + 16'b1;
+								if (shift_y_ + (P_PARAM_M >> scroll) + shift_gird_size <= P_PARAM_M) begin
+									shift_y_ <= shift_y_ + shift_gird_size;
 								end
 							end
 						end
@@ -290,8 +295,8 @@ module KeyBoardController
 								setting <= 4'b1000;
 								// 不改变其他状态
 							end else begin
-								if (shift_x_ + (P_PARAM_N >> scroll) < P_PARAM_N) begin
-									shift_x_ <= shift_x_ + 16'b1;
+								if (shift_x_ + (P_PARAM_N >> scroll) + shift_gird_size <= P_PARAM_N) begin
+									shift_x_ <= shift_x_ + shift_gird_size;
 								end
 							end
 						end
@@ -300,11 +305,9 @@ module KeyBoardController
 					endcase
 				end
 				last_code <= scancode;
-				// if (file_id_pos == 1'd0) begin
-				  // target_file_id <= file_id_dig[1] + (file_id_dig[0] << 3) + (file_id_dig[0] << 1);
-				// end
+
 				if (running == 0) begin
-					if ((file_id != target_file_id) && (file_id_pos == 1'd0)) begin
+					if ((file_id != target_file_id || reload == 1) && (file_id_pos == 1'd0)) begin
 						shift_x_ <= 16'd0;
 						shift_y_ <= 16'd0;
 						shift_x <= 16'd0;
@@ -312,6 +315,7 @@ module KeyBoardController
 						scroll <= 3'd0;
 						evo_left_shift <= 4'd0;
 					   file_id <= target_file_id;
+						reload <= 0;
 					end
 				end
 			end else begin
