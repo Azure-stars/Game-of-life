@@ -310,7 +310,7 @@ module KeyBoardController
 						shift_x <= 16'd0;
 						shift_y <= 16'd0;
 						scroll <= 3'd0;
-						evo_left_shift <= 4'd2;
+						evo_left_shift <= 4'd0;
 					   file_id <= target_file_id;
 					end
 				end
