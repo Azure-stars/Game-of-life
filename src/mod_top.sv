@@ -23,7 +23,11 @@ module mod_top (
   input  wire        sd_wp, 
 
   // 调试
-  output wire [31:0] leds         // 32 位 LED 灯，输出 1 时点亮
+  output wire [31:0] leds,        // 32 位 LED 灯，输出 1 时点亮
+
+  output wire [7: 0] dpy_digit,   // 七段数码管笔段信号
+  output wire [7: 0] dpy_segment // 七段数码管位扫描信号
+
 );
 wire clk_in = clk_100m;
 
@@ -106,6 +110,9 @@ reg modify;                         // 本周期的修改按钮是否被按下
 reg [15:0] shift_x;
 reg [15:0] shift_y;
 reg [3:0] scroll;
+
+// 数码管显示数字
+reg [31: 0] dpy_number;
                 
 initial begin   
     state = STATE_RST;
@@ -348,7 +355,8 @@ KeyBoardController #(P_PARAM_N, P_PARAM_M) keyboard_controller (
 	.shift_x   (shift_x),
 	.shift_y   (shift_y),
 	.scroll    (scroll),
-	.evo_left_shift (evo_left_shift)
+	.evo_left_shift (evo_left_shift),
+	.dpy_number (dpy_number)
 );
 
 // SD卡
@@ -372,6 +380,16 @@ SDCardReader sd_card_reader(
 	.read_data       (preset_read_val),
 	.file_id            (file_id),
 	.read_file_finish   (preset_finish)
+);
+
+
+// 七段数码管扫描
+dpy_scan u_dpy_scan (
+    .clk     (clk_in      ),
+    .number  (dpy_number      ),
+    .dp      (7'b0        ),
+    .digit   (dpy_digit   ),
+    .segment (dpy_segment )
 );
 
 

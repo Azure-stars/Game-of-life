@@ -15,7 +15,8 @@ module KeyBoardController
 	output reg [15:0] shift_x,
 	output reg [15:0] shift_y,
 	output reg [2:0] scroll,
-	output reg [3:0] evo_left_shift
+	output reg [3:0] evo_left_shift,  // 速度偏移
+	output wire [31:0] dpy_number  // 数码管
 );
 	
 	wire [7:0] scancode;  // PS2
@@ -28,6 +29,9 @@ module KeyBoardController
 
 	reg [15:0] shift_x_;
 	reg [15:0] shift_y_;
+	
+	reg [0:0] file_id_pos;  // 当前输入的file id十进制位
+	reg [3:0] file_id_dig[1:0];  // 当前输入的file id十进制数
 
 	keyboard u_keyboard (
 		.clock     (clk_in        ),
@@ -37,6 +41,10 @@ module KeyBoardController
 		.scancode  (scancode      ),
 		.valid     (scancode_valid)
 	);
+	
+	assign target_file_id = (file_id_pos == 1'd0) ? file_id_dig[1] + (file_id_dig[0] << 3) + (file_id_dig[0] << 1) : target_file_id;
+	assign dpy_number[3:0] = (file_id_pos == 1'd0) ? file_id_dig[1] : file_id_dig[0];
+	assign dpy_number[7:4] = (file_id_pos == 1'd0) ? file_id_dig[0] : 4'd0;
 
 	always @(posedge clk_in or posedge reset) begin
 		if (reset) begin
@@ -45,7 +53,7 @@ module KeyBoardController
 			start <= 0;
 			clear <= 0;
 			file_id <= 16'd0;
-			target_file_id <= 16'd0;
+			// target_file_id <= 16'd0;
 			counter <= 0;
 			
 			shift_x_ <= 16'd0;
@@ -53,10 +61,17 @@ module KeyBoardController
 			shift_x <= 16'd0;
 			shift_y <= 16'd0;
 			scroll <= 3'd0;
-			evo_left_shift <= 4'd2;
+			evo_left_shift <= 4'd0;
 			
+			// dpy_number <= 32'd0;
+			file_id_pos <= 1'd0;
+			file_id_dig[0] <= 8'd0;  // 高位
+			file_id_dig[1] <= 8'd0;
+
 			last_code <= 8'd0;
 		end else begin
+			// dpy_number[3:0] <= file_id_dig[1];
+			// dpy_number[7:4] <= file_id_dig[0];
 			if (shift_y_ + (P_PARAM_M >> scroll) <= P_PARAM_M) begin
 				shift_y <= shift_y_;
 			end else begin
@@ -71,57 +86,120 @@ module KeyBoardController
 				if (last_code != 8'b11110000) begin
 					casez(scancode)
 						8'b01000101: begin
-							target_file_id <= 16'd0;
+							// target_file_id <= 16'd0;
+							file_id_dig[file_id_pos] <= 4'd0;
+							file_id_pos <= file_id_pos + 1'd1;
 						end
 						8'b00010110: begin
-							target_file_id <= 16'd1;
+							// target_file_id <= 16'd1;
+							file_id_dig[file_id_pos] <= 4'd1;
+							file_id_pos <= file_id_pos + 1'd1;
 						end
 						8'b00011110: begin
-							target_file_id <= 16'd2;
+							// target_file_id <= 16'd2;
+							file_id_dig[file_id_pos] <= 4'd2;
+							file_id_pos <= file_id_pos + 1'd1;
 						end
 						8'b00100110: begin
-							target_file_id <= 16'd3;
+							// target_file_id <= 16'd3;
+							file_id_dig[file_id_pos] <= 4'd3;
+							file_id_pos <= file_id_pos + 1'd1;
 						end
 						8'b00100101: begin
-							target_file_id <= 16'd4;
+							// target_file_id <= 16'd4;
+							file_id_dig[file_id_pos] <= 4'd4;
+							file_id_pos <= file_id_pos + 1'd1;
 						end
 						8'b00101110: begin
-							target_file_id <= 16'd5;
+							// target_file_id <= 16'd5;
+							file_id_dig[file_id_pos] <= 4'd5;
+							file_id_pos <= file_id_pos + 1'd1;
 						end
 						8'b00110110: begin
-							target_file_id <= 16'd6;
+							// target_file_id <= 16'd6;
+							file_id_dig[file_id_pos] <= 4'd6;
+							file_id_pos <= file_id_pos + 1'd1;
 						end
 						8'b00111101: begin
-							target_file_id <= 16'd7;
+							// target_file_id <= 16'd7;
+							file_id_dig[file_id_pos] <= 4'd7;
+							file_id_pos <= file_id_pos + 1'd1;
 						end
 						8'b00111110: begin
-							target_file_id <= 16'd8;
+							// target_file_id <= 16'd8;
+							file_id_dig[file_id_pos] <= 4'd8;
+							file_id_pos <= file_id_pos + 1'd1;
 						end
 						8'b01000110: begin
-							target_file_id <= 16'd9;
+							// target_file_id <= 16'd9;
+							file_id_dig[file_id_pos] <= 4'd9;
+							file_id_pos <= file_id_pos + 1'd1;
+						end
+						8'b00001101: begin
+						   // Tab
+							if (file_id_dig[1] == 4'd9) begin
+							  if (file_id_dig[0] == 4'd9) begin
+							    file_id_dig[0] <= 4'd0;
+							    file_id_dig[1] <= 4'd0;
+							  end else begin
+							    file_id_dig[1] <= 4'd0;
+							    file_id_dig[0] <= file_id_dig[0] + 4'd1;
+							  end
+							end else begin
+							  file_id_dig[1] <= file_id_dig[1] + 4'd1;
+							end
+							file_id_pos <= 1'd0;
+						end
+						8'b00010010: begin
+						   // Shift
+							if (file_id_dig[1] == 4'd0) begin
+							  if (file_id_dig[0] == 4'd0) begin
+							    file_id_dig[0] <= 4'd9;
+							    file_id_dig[1] <= 4'd9;
+							  end else begin
+							    file_id_dig[1] <= 4'd9;
+							    file_id_dig[0] <= file_id_dig[0] - 4'd1;
+							  end
+							end else begin
+							  file_id_dig[1] <= file_id_dig[1] - 4'd1;
+							end
+							file_id_pos <= 1'd0;
 						end
 						8'b01001101: begin
-						if(running == 1) begin
-							pause <= 1;
-							start <= 0;
-							running <= 0;
-							manual <= 0;
-						end
+						  if(running == 1) begin
+						    // Pause
+							 pause <= 1;
+							 start <= 0;
+							 running <= 0;
+							 manual <= 0;
+							 file_id_pos <= 1'd0;
+			             file_id_dig[0] <= 8'd0;
+			             file_id_dig[1] <= 8'd0;
+						  end
 						end
 						8'b01011010: begin
-						if(running == 0) begin
-							start <= 1;
-							pause <= 0;
-							running <= 1;
-							manual <= 0;
-						end
+						  if(running == 0) begin
+						    // Enter
+					       start <= 1;
+						    pause <= 0;
+						    running <= 1;
+						    manual <= 0;
+							 file_id_pos <= 1'd0;
+			             file_id_dig[0] <= 8'd0;
+			             file_id_dig[1] <= 8'd0;
+						  end
 						end
 						8'b00101101: begin
+						   // Reset
+							// target_file_id <= 16'd0;
 							clear <= 1;
 							start <= 0;
 							pause <= 0;
 							running <= 0;
 							manual <= 0;
+							file_id_pos <= 1'd0;
+			            file_id_dig[0] <= 8'd0;
+			            file_id_dig[1] <= 8'd0;
 						end
 						8'b01000001 : begin
 							// 按下<键
@@ -222,16 +300,19 @@ module KeyBoardController
 					endcase
 				end
 				last_code <= scancode;
+				// if (file_id_pos == 1'd0) begin
+				  // target_file_id <= file_id_dig[1] + (file_id_dig[0] << 3) + (file_id_dig[0] << 1);
+				// end
 				if (running == 0) begin
-					if (file_id != target_file_id) begin
+					if ((file_id != target_file_id) && (file_id_pos == 1'd0)) begin
 						shift_x_ <= 16'd0;
 						shift_y_ <= 16'd0;
 						shift_x <= 16'd0;
 						shift_y <= 16'd0;
 						scroll <= 3'd0;
 						evo_left_shift <= 4'd2;
+					   file_id <= target_file_id;
 					end
-					file_id <= target_file_id;
 				end
 			end else begin
 				// pause <= 0;
