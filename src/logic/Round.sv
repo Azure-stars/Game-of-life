@@ -35,13 +35,12 @@ reg [WIDTH - 1: 0] center_hdata;
 reg [WIDTH - 1: 0] center_vdata;
 
 reg prev_start;
-
-reg [5:0] last_block_tail; // 记录上一个块的最后两列的状态
+reg [3*BLOCK_LEN - 1: 0] last_line_status;
+// reg [5:0] last_block_tail; // 记录上一个块的最后两列的状态
 reg [BLOCK_LEN - 1: 0] prev_live; // 记录上一个块的全部状态
 reg last_prev_live;                 // 上一个块的最后一列的状态
 reg [BLOCK_LEN - 1: 0] now_live;  // 记录当前块的全部存活状态
 reg [2:0] prev_status;
-
 initial begin
     status = P_RST;
     // line_status = 0;
@@ -50,11 +49,11 @@ initial begin
     prev_start = 0;
     prev_status = 0;
     prev_global_evo_en = 1;
-    last_block_tail = 0;
+    last_line_status = 0;
 end
 
 Evolution #(BLOCK_LEN) evo(
-    .last_block_tail(last_block_tail),
+    .last_line_status(last_line_status),
     .line_status(line_status),
     .now_live(now_live),
     .prev_live_single(last_prev_live)
@@ -62,7 +61,7 @@ Evolution #(BLOCK_LEN) evo(
 
 always @ (posedge clk or posedge rst) begin
     prev_start <= start;
-    prev_status <= status;
+    
     if (rst) begin
         status <= P_RST;
         prev_global_evo_en <= 0;
@@ -72,7 +71,7 @@ always @ (posedge clk or posedge rst) begin
         wden <= 0;
         line_status <= 0;
         now_pos <= 0;
-        last_block_tail <= 0;
+        last_line_status <= 0;
     end
     else if (prev_start != start && start == 1) begin
         // 从清空状态到重新开始演化，此时需要清空当前状态
@@ -84,18 +83,23 @@ always @ (posedge clk or posedge rst) begin
         now_pos <= 0;
         wden <= 0;
         line_status <= 0;
-        last_block_tail <= 0;
+        last_line_status <= 0;
     end
     else begin
-        if (prev_status >= P_LINE_UP && prev_status <= P_LINE_DOWN) begin
-            case (prev_status)
-                P_LINE_UP : line_status[BLOCK_LEN - 1: 0] <= round_read_val;
-                P_LINE_MIDDLE : line_status[2*BLOCK_LEN - 1: BLOCK_LEN] <= round_read_val;
-                P_LINE_DOWN : line_status[3*BLOCK_LEN - 1: 2*BLOCK_LEN] <= round_read_val; 
-                default: begin
-                end
-            endcase
-        end
+        prev_status <= status;
+        case (prev_status)
+            P_LINE_UP : begin
+                line_status[BLOCK_LEN - 1: 0] <= round_read_val;
+            end 
+            P_LINE_MIDDLE : begin
+                line_status[2*BLOCK_LEN - 1: BLOCK_LEN] <= round_read_val;
+            end 
+            P_LINE_DOWN : begin
+                line_status[3*BLOCK_LEN - 1: 2*BLOCK_LEN] <= round_read_val; 
+            end 
+            default: begin
+            end
+        endcase
         case (status)
             P_RST : begin
                 wden <= 0;
@@ -129,7 +133,7 @@ always @ (posedge clk or posedge rst) begin
                     status <= P_LINE_DOWN;
                 end
                 else begin
-                    status <= P_CALC;
+                    status <= P_TEMP;
                 end
             end
             P_LINE_DOWN : begin
@@ -151,12 +155,12 @@ always @ (posedge clk or posedge rst) begin
                     // 代表写入上一块内容
                     round_write_pos <= now_pos - 1;
                 end
+                last_line_status <= line_status;
                 status <= P_FINISH;
             end
             default : begin
                 line_status <= 0;
                 if (center_hdata == P_PARAM_N - BLOCK_LEN && center_vdata == P_PARAM_M - 1) begin
-                    last_block_tail <= 0;
                     now_pos <= 0;
                     center_hdata <= 0;
                     center_vdata <= 0;
@@ -173,7 +177,6 @@ always @ (posedge clk or posedge rst) begin
                         // 那么当前读取的就不用再依赖于下一轮的了，也就是正常的
                         live <= now_live;
                         // 直接写入即可
-                        last_block_tail <= 0;
                         center_hdata <= 0;
                         center_vdata <= center_vdata + 1;
                         round_write_pos <= now_pos;
@@ -181,12 +184,6 @@ always @ (posedge clk or posedge rst) begin
                         status <= P_LINE_UP;
                     end
                     else begin
-                        last_block_tail[0] <= line_status[BLOCK_LEN - 2];
-                        last_block_tail[1] <= line_status[2 * BLOCK_LEN - 2];
-                        last_block_tail[2] <= line_status[3 * BLOCK_LEN - 2];
-                        last_block_tail[3] <= line_status[BLOCK_LEN - 1];
-                        last_block_tail[4] <= line_status[2 * BLOCK_LEN - 1];
-                        last_block_tail[5] <= line_status[3 * BLOCK_LEN - 1]; 
                         wden <= 0;
                         center_hdata <= center_hdata + BLOCK_LEN;
                         if (center_vdata == 0) begin
@@ -198,7 +195,6 @@ always @ (posedge clk or posedge rst) begin
                             round_read_pos <= now_pos + 1 - READ_COL;
                         end
                     end
-
                 end
             end
         endcase
