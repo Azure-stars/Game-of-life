@@ -51,6 +51,7 @@ module KeyBoardController
 	assign target_file_id = (file_id_pos == 1'd0) ? file_id_dig[1] + (file_id_dig[0] << 3) + (file_id_dig[0] << 1) : target_file_id;
 	assign dpy_number[3:0] = (file_id_pos == 1'd0) ? file_id_dig[1] : file_id_dig[0];
 	assign dpy_number[7:4] = (file_id_pos == 1'd0) ? file_id_dig[0] : 4'd0;
+	assign dpy_number[11:8] = evo_left_shift;
 	assign shift_gird_size = (scroll <= 4) ? (16'd16 >> scroll) : 1;
 
 	initial begin
@@ -224,7 +225,7 @@ module KeyBoardController
 						end
 						8'b01000001 : begin
 							// 按下<键
-							if (evo_left_shift < 4'd5) begin
+							if (evo_left_shift < 4'd8) begin
 								evo_left_shift <= evo_left_shift + 4'd1;
 							end
 						end
