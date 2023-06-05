@@ -82,34 +82,34 @@ initial begin
     pos = 0;
 end
 always @ (posedge clk) begin
-    // if (hdata < HSIZE) begin
-    //     pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N + ((hdata[WIDTH - 1:0] >> scroll) + shift_x) + 2;  // {vdata, 9'd0} + {vdata, 8'd0} + {vdata, 5'd0}
-    // end
-    // else if (hdata == HMAX - 2) begin
-    //     if (vdata < VSIZE - 1) begin
-    //         pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N;
-    //     end
-    //     else begin
-    //         // vdata为VMAX的情况被包含了
-    //         pos <= 0;
-    //     end
-    // end
-    // else if (hdata == HMAX - 1) begin
-    //     if (vdata < VSIZE - 1) begin
-    //         pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y + 1) * P_PARAM_N + 1;
-    //     end
-    //     else if (vdata == VMAX - 1) begin
-    //         pos <= 1;
-    //     end
-    //     else begin
-    //         pos <= 0;
-    //     end
-    // end
-    // else begin
-    //     pos <= 0;
-    // end
+    if (hdata < HSIZE) begin
+        pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N + ((hdata[WIDTH - 1:0] >> scroll) + shift_x) + 2;  // {vdata, 9'd0} + {vdata, 8'd0} + {vdata, 5'd0}
+    end
+    else if (hdata == HMAX - 2) begin
+        if (vdata < VSIZE - 1) begin
+            pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N;
+        end
+        else begin
+            // vdata为VMAX的情况被包含了
+            pos <= 0;
+        end
+    end
+    else if (hdata == HMAX - 1) begin
+        if (vdata < VSIZE - 1) begin
+            pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y + 1) * P_PARAM_N + 1;
+        end
+        else if (vdata == VMAX - 1) begin
+            pos <= 1;
+        end
+        else begin
+            pos <= 0;
+        end
+    end
+    else begin
+        pos <= 0;
+    end
     prev_pos <= pos;
-    pos <= ((vdata >> scroll) + shift_y) * P_PARAM_N + ((hdata >> scroll) + shift_x);
+    // pos <= ((vdata >> scroll) + shift_y) * P_PARAM_N + ((hdata >> scroll) + shift_x);
     cell_color[0] <= {pos[4:0], pos[7:5]};
     cell_color[1] <= {pos[2:0], pos[7:3]};
     // cell_color[0] <= {1'b1, pos[4:1], pos[7:5]};
