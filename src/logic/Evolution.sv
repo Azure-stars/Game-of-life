@@ -9,6 +9,9 @@ module Evolution
   output reg prev_live_single  // 上一块的存活状态
 );
 
+// assign now_live[BLOCK_LEN - 1: 1] = line_status[2*BLOCK_LEN - 1: BLOCK_LEN + 1];
+// assign prev_live_single = last_line_status[3*BLOCK_LEN - 1];
+
 always_comb begin
   automatic integer live_num_1 = 0;
   for (int i = 1; i <= 3; i = i + 1) begin
@@ -53,7 +56,7 @@ always_comb begin
         end
       end
       else begin
-        if (last_line_status[(k + 1) * BLOCK_LEN - 1] == 1) begin
+        if (last_line_status[k * BLOCK_LEN - 1 + BLOCK_LEN] == 1) begin
           live_num_2 = live_num_2 + 1;
         end
       end

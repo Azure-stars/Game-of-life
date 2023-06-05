@@ -132,7 +132,8 @@ always @ (posedge clk or posedge rst) begin
                     round_read_pos <= round_read_pos + READ_COL;
                     status <= P_LINE_DOWN;
                 end
-                else begin
+                else 
+                begin
                     status <= P_TEMP;
                 end
             end
@@ -155,11 +156,12 @@ always @ (posedge clk or posedge rst) begin
                     // 代表写入上一块内容
                     round_write_pos <= now_pos - 1;
                 end
-                last_line_status <= line_status;
                 status <= P_FINISH;
             end
             default : begin
+                last_line_status <= line_status;
                 line_status <= 0;
+                // wden <= 0;
                 if (center_hdata == P_PARAM_N - BLOCK_LEN && center_vdata == P_PARAM_M - 1) begin
                     now_pos <= 0;
                     center_hdata <= 0;
