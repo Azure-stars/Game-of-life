@@ -1,5 +1,5 @@
 module SDCardReader
-#(parameter P_PARAM_W = 800, P_PARAM_H = 600, FILE_BLOCK = 7'b0)
+#(parameter P_PARAM_W = 800, P_PARAM_H = 600, BLOCK_LEN = 1)
 (
     input  wire clk_spi,
     input  wire clk_ram,
@@ -11,10 +11,10 @@ module SDCardReader
     output wire        sd_cs,       // SPI 片选，低有效
 
 	output reg        [23:0] address,
-	output reg        write_data,
+	output reg        [BLOCK_LEN - 1: 0] write_data,
 	output reg         rden,
 	output reg         wren,
-	input wire         read_data,
+	input wire        [BLOCK_LEN - 1: 0] read_data,
 	
 
 	
@@ -59,8 +59,8 @@ module SDCardReader
 			rden <= 0;
 			wren <= 0;
 			read_file_finish <= 0;
-			write_bit <= 32'b0;
-			address <= 32'b0;
+			write_bit <= 32'd0;
+			address <= 32'b11111111111111111111111111111111;
 			execute <= 0;
 		end else begin
 			if (read_file_finish == 0) begin
@@ -74,10 +74,10 @@ module SDCardReader
 					STATE_FINISH: begin
 						if (execute == 0) begin
 							if (wren == 1) begin
-								write_data <= mem[write_bit[11:3]][write_bit[2:0]];
-								write_bit <= write_bit + 32'b1;
-								address <= address + 32'b1;
-								if (write_bit[11:0] == 12'd4095) begin
+								write_data <= {mem[write_bit[11:3] + 32'd3], mem[write_bit[11:3] + 32'd2], mem[write_bit[11:3] + 32'd1], mem[write_bit[11:3] + 32'd0]};  // [write_bit[2:0]]
+								write_bit <= write_bit + 32'd32;
+								address <= address + 32'd1;
+								if (write_bit[11:0] == 12'd4064) begin
 									wren <= 0;
 									execute <= 1;
 									if (block_id[6:0] == 7'd127) begin
@@ -106,7 +106,7 @@ module SDCardReader
 					wren <= 0;
 
 					write_bit <= 32'b0;
-					address <= 32'b0;
+					address <= 32'b11111111111111111111111111111111;
 					execute <= 0;
 				end
 			end

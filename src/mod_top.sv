@@ -82,10 +82,10 @@ reg init_finish;
 wire init_wden; 
 wire [23:0] preset_write_pos;
 wire preset_wden;
-wire preset_write_val;
+wire [BLOCK_LEN - 1: 0]preset_write_val;
 reg preset_finish;
 reg preset_rden;
-reg preset_read_val;
+reg [BLOCK_LEN - 1: 0]preset_read_val;
 
 reg [11:0]setting_hdata;          // 手动写入的位置        
 reg [11:0]setting_vdata;    
@@ -298,7 +298,7 @@ KeyBoardController #(P_PARAM_N, P_PARAM_M) keyboard_controller (
 
 wire read_file_finish;
 
-SDCardReader sd_card_reader(
+SDCardReader #(P_PARAM_N, P_PARAM_M, BLOCK_LEN) sd_card_reader(
 	.clk_spi            (clk_vga),
 	.reset              (reset_btn),
 
@@ -342,12 +342,12 @@ always_comb begin
             ram_wden[2] = init_wden;
             ram_wden[3] = init_wden;
         end
-        // else if (preset_finish == 0) begin
-        //     ram_wden[0] = preset_wden;
-        //     ram_wden[1] = preset_wden;
-        //     ram_wden[2] = preset_wden;
-        //     ram_wden[3] = preset_wden;
-        // end
+        else if (preset_finish == 0) begin
+            ram_wden[0] = preset_wden;
+            ram_wden[1] = preset_wden;
+            ram_wden[2] = preset_wden;
+            ram_wden[3] = preset_wden;
+        end
         else begin
             ram_wden[0] = 0;
             ram_wden[1] = 0;
@@ -390,12 +390,12 @@ always_comb begin
             ram_write_data[2] = init_write_val;
             ram_write_data[3] = init_write_val;
         end
-        // else if (preset_finish == 0) begin
-        //     ram_write_data[0] = preset_write_val;
-        //     ram_write_data[1] = preset_write_val;
-        //     ram_write_data[2] = preset_write_val;
-        //     ram_write_data[3] = preset_write_val;
-        // end
+        else if (preset_finish == 0) begin
+            ram_write_data[0] = preset_write_val;
+            ram_write_data[1] = preset_write_val;
+            ram_write_data[2] = preset_write_val;
+            ram_write_data[3] = preset_write_val;
+        end
         else begin
             ram_write_data[0] = 0;
             ram_write_data[1] = 0;
