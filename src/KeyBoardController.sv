@@ -59,6 +59,12 @@ module KeyBoardController
 		setting_pos = P_PARAM_N / 2 + (P_PARAM_M / 2 * P_PARAM_N);
 	end
 
+	initial begin
+		setting_hdata = P_PARAM_N / 2;
+		setting_vdata = P_PARAM_M / 2;
+		setting_pos = P_PARAM_N / 2 + (P_PARAM_M / 2 * P_PARAM_N);
+	end
+
 	always @(posedge clk_in or posedge reset) begin
 		if (reset) begin
 			running <= 0;

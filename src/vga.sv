@@ -13,7 +13,7 @@
 // VSPP: vertical synchro pulse polarity (0 - negative, 1 - positive)
 //
 module vga
-#(parameter WIDTH = 0, HSIZE = 0, HFP = 0, HSP = 0, HMAX = 0, VSIZE = 0, VFP = 0, VSP = 0, VMAX = 0, HSPP = 0, VSPP = 0, P_PARAM_N = 0, P_PARAM_M = 0)
+#(parameter WIDTH = 0, HSIZE = 0, HFP = 0, HSP = 0, HMAX = 0, VSIZE = 0, VFP = 0, VSP = 0, VMAX = 0, HSPP = 0, VSPP = 0, P_PARAM_N = 0, P_PARAM_M = 0, BLOCK_LEN = 1)
 (
 
     input wire [15:0] shift_x,
@@ -21,25 +21,24 @@ module vga
     input wire [3:0] scroll,
 
     input wire clk,
-    input wire vga_live,                // vga读取的像素是否存活
+    input wire [BLOCK_LEN - 1: 0] vga_live,                // vga读取的像素是否存活
     input wire setting_status,          // 是否为手动选中状态
     input wire [2 * WIDTH - 1:0] setting_pos,      // 手动选中的位置
     output wire hsync,  
     output wire vsync,
-    output reg [2 * WIDTH - 1:0] pos,   // 当前读取的位置
+    output reg [2 * WIDTH - 1:0] output_pos,   // 当前读取的位置
     output reg [7: 0] video_red,        // 红色像素，8位
     output reg [7: 0] video_green,      // 绿色像素，8位 
     output reg [7: 0] video_blue,       // 蓝色像素，8位
     output wire data_enable
 );
-
+reg[2*WIDTH - 1:0] prev_pos; 
+reg[2*WIDTH - 1:0] pos;
 reg [7:0] cell_color [2:0];
 
 reg[WIDTH - 1:0] hdata;
 reg[WIDTH - 1:0] vdata;
-// 当前一个像素大小为32
-parameter PIXIV = HSIZE / P_PARAM_N;
-parameter ALL_COL = HMAX / PIXIV;
+
 initial begin
     cell_color[0] <= 8'd255;
     cell_color[1] <= 8'd255;
@@ -50,6 +49,8 @@ initial begin
     video_blue = 0;
     video_red = 0;
 end
+
+assign output_pos = pos[2*WIDTH - 1:5];
 
 // WIDTH与整个屏幕有关
 // HSIZE代表了可见域的宽度
@@ -81,32 +82,34 @@ initial begin
     pos = 0;
 end
 always @ (posedge clk) begin
-    if (hdata < HSIZE) begin
-        pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N + ((hdata[WIDTH - 1:0] >> scroll) + shift_x) + 2;  // {vdata, 9'd0} + {vdata, 8'd0} + {vdata, 5'd0}
-    end
-    else if (hdata == HMAX - 2) begin
-        if (vdata < VSIZE - 1) begin
-            pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N + 1;
-        end
-        else begin
-            // vdata为VMAX的情况被包含了
-            pos <= 0;
-        end
-    end
-    else if (hdata == HMAX - 1) begin
-        if (vdata < VSIZE - 1) begin
-            pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N + 2;
-        end
-        else if (vdata == VMAX - 1) begin
-            pos <= 1;
-        end
-        else begin
-            pos <= 0;
-        end
-    end
-    else begin
-        pos <= 0;
-    end
+    // if (hdata < HSIZE) begin
+    //     pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N + ((hdata[WIDTH - 1:0] >> scroll) + shift_x) + 2;  // {vdata, 9'd0} + {vdata, 8'd0} + {vdata, 5'd0}
+    // end
+    // else if (hdata == HMAX - 2) begin
+    //     if (vdata < VSIZE - 1) begin
+    //         pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N;
+    //     end
+    //     else begin
+    //         // vdata为VMAX的情况被包含了
+    //         pos <= 0;
+    //     end
+    // end
+    // else if (hdata == HMAX - 1) begin
+    //     if (vdata < VSIZE - 1) begin
+    //         pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y + 1) * P_PARAM_N + 1;
+    //     end
+    //     else if (vdata == VMAX - 1) begin
+    //         pos <= 1;
+    //     end
+    //     else begin
+    //         pos <= 0;
+    //     end
+    // end
+    // else begin
+    //     pos <= 0;
+    // end
+    prev_pos <= pos;
+    pos <= ((vdata >> scroll) + shift_y) * P_PARAM_N + ((hdata >> scroll) + shift_x);
     cell_color[0] <= {pos[4:0], pos[7:5]};
     cell_color[1] <= {pos[2:0], pos[7:3]};
     // cell_color[0] <= {1'b1, pos[4:1], pos[7:5]};
@@ -116,7 +119,7 @@ end
 always @ (posedge clk)
 begin
     if(hdata < HSIZE && vdata < VSIZE) begin
-        if (vga_live) begin
+        if (vga_live[prev_pos[4:0]]) begin
             // 存活，为白色
             if (setting_status && setting_pos == pos) begin
                 video_red <= 8'b11111111;

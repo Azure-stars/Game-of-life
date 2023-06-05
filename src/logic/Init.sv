@@ -3,15 +3,16 @@
 module Init #(
     P_PARAM_M = 5,  // 行 
     P_PARAM_N = 5,  // 列
-    WIDTH = 12     // 宽度
+    WIDTH = 12,    // 宽度
+    BLOCK_LEN = 1
 )(
     input wire clk,
     input wire start,       // 是否开始新的一轮写入
-    input wire read_val,    // 读取的数据
+    input wire[BLOCK_LEN - 1: 0] read_val,    // 读取的数据
     output reg [2*WIDTH-1:0] read_addr,   // 读取的地址
     output reg [2*WIDTH-1:0] write_addr, // 写入的地址
     output reg write_en,   // 写入使能
-    output reg write_val,  // 写入的数据
+    output reg[BLOCK_LEN - 1: 0] write_val,  // 写入的数据
     output reg finish      // 已经完成了写入
 );
     reg [2:0] state;
@@ -20,6 +21,7 @@ module Init #(
     parameter STATE_READ = 2;
     parameter STATE_WRITE = 3;
     parameter STATE_FINISH = 4;
+    parameter READ_COL = P_PARAM_N / BLOCK_LEN;
     reg prev_start;
     initial begin
         prev_start = 0;
@@ -61,7 +63,7 @@ module Init #(
             STATE_FINISH : begin
                 // 成功写入了值
                 write_en <= 0;
-                if (write_addr != (P_PARAM_M * P_PARAM_N - 1)) begin
+                if (write_addr != (P_PARAM_M * READ_COL - 1)) begin
                     state <= STATE_START;
                     write_addr <= write_addr + 1;
                     read_addr <= read_addr + 1;

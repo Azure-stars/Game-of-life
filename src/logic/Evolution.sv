@@ -1,29 +1,76 @@
 `timescale 1ns / 1ps
 module Evolution
+#(BLOCK_LEN = 1)
 // 默认大小100 * 100
 (
-  input wire [8:0] status, // 自身与周围块的状态
-  output reg live      // 是否存活
+  input wire [3 * BLOCK_LEN - 1: 0] last_line_status,
+  input wire [3 * BLOCK_LEN - 1: 0] line_status,
+  output reg [BLOCK_LEN - 1: 0] now_live,      // 是否存活
+  output reg prev_live_single  // 上一块的存活状态
 );
 
-integer i;
-integer liveNum;
+// assign now_live[BLOCK_LEN - 1: 1] = line_status[2*BLOCK_LEN - 1: BLOCK_LEN + 1];
+// assign prev_live_single = last_line_status[3*BLOCK_LEN - 1];
+
 always_comb begin
-  liveNum = 0;
-  for (i = 1; i < 9; i = i + 1) begin
-    if (status[i] == 1) begin
-      liveNum = liveNum + 1;
+  automatic integer live_num_1 = 0;
+  for (int i = 1; i <= 3; i = i + 1) begin
+    if (i != 2 && last_line_status[i * BLOCK_LEN - 1] == 1) begin
+      live_num_1 = live_num_1 + 1;
+    end
+    if (last_line_status[i * BLOCK_LEN - 2] == 1) begin
+      live_num_1 = live_num_1 + 1;
+    end
+    if (line_status[(i - 1) * BLOCK_LEN] == 1) begin
+      live_num_1 = live_num_1 + 1;
     end
   end
-  if (status[0] == 0 && liveNum == 3) begin
-    live = 1;
+  if (live_num_1 == 3) begin
+    prev_live_single = 1;
   end
-  else if (status[0] == 1 && (liveNum == 2 || liveNum == 3)) begin
-    live = 1;
+  else if (last_line_status[2 * BLOCK_LEN - 1] == 1 && live_num_1 == 2) begin
+    prev_live_single = 1;
   end
   else begin
-    live = 0;
+    prev_live_single = 0;
   end
 end
-// assign live = status[0];
+
+always_comb begin
+  automatic integer live_num_2 = 0;
+  for (int j = 0; j <= BLOCK_LEN - 1; j = j + 1) begin
+    live_num_2 = 0;
+    for (int k = 0; k < 3; k = k + 1) begin
+      if (k != 1 && line_status[j + k * BLOCK_LEN] == 1) begin
+        // 注意不算自己
+        live_num_2 = live_num_2 + 1;
+      end
+      if (j != BLOCK_LEN - 1) begin
+        if (line_status[j + k * BLOCK_LEN + 1] == 1) begin
+          live_num_2 = live_num_2 + 1;
+        end
+      end
+      if (j != 0) begin
+        if (line_status[j + k * BLOCK_LEN - 1] == 1) begin
+          live_num_2 = live_num_2 + 1;
+        end
+      end
+      else begin
+        if (last_line_status[k * BLOCK_LEN - 1 + BLOCK_LEN] == 1) begin
+          live_num_2 = live_num_2 + 1;
+        end
+      end
+    end
+    if (live_num_2 == 3) begin
+      now_live[j] = 1;
+    end
+    else if (live_num_2 == 2 && line_status[j + BLOCK_LEN] == 1) begin
+      now_live[j] = 1;
+    end
+    else begin
+      now_live[j] = 0;
+    end
+  end  
+end
+
 endmodule
