@@ -159,7 +159,6 @@ always @ (posedge clk or posedge rst) begin
                 status <= P_FINISH;
             end
             default : begin
-                last_line_status <= line_status;
                 line_status <= 0;
                 // wden <= 0;
                 if (center_hdata == P_PARAM_N - BLOCK_LEN && center_vdata == P_PARAM_M - 1) begin
@@ -170,12 +169,15 @@ always @ (posedge clk or posedge rst) begin
                     // 此时wden仍为1
                     live <= now_live;
                     round_write_pos <= now_pos;
+                    last_line_status <= 0;
                     status <= P_RST;
                 end
                 else begin
                     now_pos <= now_pos + 1;
                     prev_live <= now_live;
                     if (center_hdata == P_PARAM_N - BLOCK_LEN) begin
+                        last_line_status <= 0;  // 这里的清空是必要的，否则会影响下一行第0列的情况
+
                         // 那么当前读取的就不用再依赖于下一轮的了，也就是正常的
                         live <= now_live;
                         // 直接写入即可
@@ -186,6 +188,7 @@ always @ (posedge clk or posedge rst) begin
                         status <= P_LINE_UP;
                     end
                     else begin
+                        last_line_status <= line_status;
                         wden <= 0;
                         center_hdata <= center_hdata + BLOCK_LEN;
                         if (center_vdata == 0) begin
