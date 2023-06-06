@@ -107,6 +107,7 @@ reg reload;                         // 重新加载当前文件
 reg [15:0] shift_x;
 reg [15:0] shift_y;
 reg [3:0] scroll;
+reg [31:0] display_color_id;    // 输出颜色风格
 
 // 数码管显示数字
 reg [31: 0] dpy_number;
@@ -276,7 +277,8 @@ vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1, P_PARAM_N, P_PARAM_M, B
 	.data_enable(video_de),
 	.shift_x   (shift_x),
 	.shift_y   (shift_y),
-	.scroll    (scroll)
+	.scroll    (scroll),
+	.display_color_id (display_color_id)
 );
 
 // // 键盘控制模块
@@ -302,7 +304,8 @@ KeyBoardController #(P_PARAM_N, P_PARAM_M) keyboard_controller (
    .setting_hdata  (setting_hdata),
    .setting_vdata  (setting_vdata),
    .setting_pos    (setting_pos),
-   .modify         (modify)
+   .modify         (modify),
+	.display_color_id (display_color_id)
 );
 
 // SD卡

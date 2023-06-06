@@ -16,6 +16,7 @@ module KeyBoardController
 	output reg [WIDTH - 1:0] shift_y,
 	output reg [2:0] scroll,
 	output reg [3:0] evo_left_shift,  // 速度偏移
+	output reg [31:0] display_color_id,
 	output wire [31:0] dpy_number,  // 数码管
 
 	output reg [WIDTH - 1:0] setting_hdata,
@@ -83,6 +84,7 @@ module KeyBoardController
 			shift_y <= 16'd0;
 			scroll <= 3'd0;
 			evo_left_shift <= 4'd0;
+			display_color_id <= 32'd0;
 			
 			// dpy_number <= 32'd0;
 			file_id_pos <= 1'd0;
@@ -108,53 +110,101 @@ module KeyBoardController
 					casez(scancode)
 						8'b01000101: begin
 							// target_file_id <= 16'd0;
-							file_id_dig[file_id_pos] <= 4'd0;
-							file_id_pos <= file_id_pos + 1'd1;
+							if(running == 0) begin
+							  file_id_dig[file_id_pos] <= 4'd0;
+							  file_id_pos <= file_id_pos + 1'd1;
+							end else begin
+							  evo_left_shift <= 4'd0;
+							end
 						end
 						8'b00010110: begin
 							// target_file_id <= 16'd1;
-							file_id_dig[file_id_pos] <= 4'd1;
-							file_id_pos <= file_id_pos + 1'd1;
+							if(running == 0) begin
+							  file_id_dig[file_id_pos] <= 4'd1;
+							  file_id_pos <= file_id_pos + 1'd1;
+							end else begin
+							  evo_left_shift <= 4'd1;
+							end
 						end
 						8'b00011110: begin
 							// target_file_id <= 16'd2;
-							file_id_dig[file_id_pos] <= 4'd2;
-							file_id_pos <= file_id_pos + 1'd1;
+							if(running == 0) begin
+							  file_id_dig[file_id_pos] <= 4'd2;
+							  file_id_pos <= file_id_pos + 1'd1;
+							end else begin
+							  evo_left_shift <= 4'd2;
+							end
 						end
 						8'b00100110: begin
 							// target_file_id <= 16'd3;
-							file_id_dig[file_id_pos] <= 4'd3;
-							file_id_pos <= file_id_pos + 1'd1;
+							if(running == 0) begin
+							  file_id_dig[file_id_pos] <= 4'd3;
+							  file_id_pos <= file_id_pos + 1'd1;
+							end else begin
+							  evo_left_shift <= 4'd3;
+							end
 						end
 						8'b00100101: begin
 							// target_file_id <= 16'd4;
-							file_id_dig[file_id_pos] <= 4'd4;
-							file_id_pos <= file_id_pos + 1'd1;
+							if(running == 0) begin
+							  file_id_dig[file_id_pos] <= 4'd4;
+							  file_id_pos <= file_id_pos + 1'd1;
+							end else begin
+							  evo_left_shift <= 4'd4;
+							end
 						end
 						8'b00101110: begin
 							// target_file_id <= 16'd5;
-							file_id_dig[file_id_pos] <= 4'd5;
-							file_id_pos <= file_id_pos + 1'd1;
+							if(running == 0) begin
+							  file_id_dig[file_id_pos] <= 4'd5;
+							  file_id_pos <= file_id_pos + 1'd1;
+							end else begin
+							  evo_left_shift <= 4'd5;
+							end
 						end
 						8'b00110110: begin
 							// target_file_id <= 16'd6;
-							file_id_dig[file_id_pos] <= 4'd6;
-							file_id_pos <= file_id_pos + 1'd1;
+							if(running == 0) begin
+							  file_id_dig[file_id_pos] <= 4'd6;
+							  file_id_pos <= file_id_pos + 1'd1;
+							end else begin
+							  evo_left_shift <= 4'd6;
+							end
 						end
 						8'b00111101: begin
 							// target_file_id <= 16'd7;
-							file_id_dig[file_id_pos] <= 4'd7;
-							file_id_pos <= file_id_pos + 1'd1;
+							if(running == 0) begin
+							  file_id_dig[file_id_pos] <= 4'd7;
+							  file_id_pos <= file_id_pos + 1'd1;
+							end else begin
+							  evo_left_shift <= 4'd7;
+							end
 						end
 						8'b00111110: begin
 							// target_file_id <= 16'd8;
-							file_id_dig[file_id_pos] <= 4'd8;
-							file_id_pos <= file_id_pos + 1'd1;
+							if(running == 0) begin
+							  file_id_dig[file_id_pos] <= 4'd8;
+							  file_id_pos <= file_id_pos + 1'd1;
+							end else begin
+							  evo_left_shift <= 4'd8;
+							end
 						end
 						8'b01000110: begin
 							// target_file_id <= 16'd9;
-							file_id_dig[file_id_pos] <= 4'd9;
-							file_id_pos <= file_id_pos + 1'd1;
+							if(running == 0) begin
+							  file_id_dig[file_id_pos] <= 4'd9;
+							  file_id_pos <= file_id_pos + 1'd1;
+							end else begin
+							  // evo_left_shift <= 4'd9;
+							end
+						end
+						8'b00101001: begin
+							// space
+							if (display_color_id < 32'd7) begin
+							   display_color_id <= display_color_id + 32'd1;
+						   end else begin
+							   display_color_id <= 0;
+							end
 						end
 						8'b00001101: begin
 						   // Tab
@@ -320,12 +370,12 @@ module KeyBoardController
 								end
 							end
 						end
-						8'b00101001 : begin
+						// 8'b00101001 : begin
 							// 按下空格
-							if (manual == 1) begin
-								modify <= 1;
-							end
-						end
+							// if (manual == 1) begin
+								// modify <= 1;
+							// end
+						// end
 						default: begin
 						end
 					endcase
@@ -342,7 +392,7 @@ module KeyBoardController
 						shift_x <= 16'd0;
 						shift_y <= 16'd0;
 						scroll <= 3'd0;
-						evo_left_shift <= 4'd0;
+  						// evo_left_shift <= 4'd0;
 					   file_id <= target_file_id;
 						reload <= 0;
 					end

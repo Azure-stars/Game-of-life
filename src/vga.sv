@@ -24,6 +24,8 @@ module vga
     input wire [BLOCK_LEN - 1: 0] vga_live,                // vga读取的像素是否存活
     input wire setting_status,          // 是否为手动选中状态
     input wire [2 * WIDTH - 1:0] setting_pos,      // 手动选中的位置
+	 input wire [31:0] display_color_id,
+	 
     output wire hsync,  
     output wire vsync,
     output reg [2 * WIDTH - 1:0] output_pos,   // 当前读取的位置
@@ -34,15 +36,38 @@ module vga
 );
 reg[2*WIDTH - 1:0] prev_pos; 
 reg[2*WIDTH - 1:0] pos;
-reg [7:0] cell_color [2:0];
+reg [7:0] cell_color [3:0][2:0];
+reg [7:0] background_color [3:0][2:0];
 
 reg[WIDTH - 1:0] hdata;
 reg[WIDTH - 1:0] vdata;
 
 initial begin
-    cell_color[0] <= 8'd255;
-    cell_color[1] <= 8'd255;
-    cell_color[2] <= 8'd255;
+    cell_color[0][0] <= 8'd255;
+    cell_color[0][1] <= 8'd255;
+    cell_color[0][2] <= 8'd255;
+    cell_color[1][0] <= 8'd255;
+    cell_color[1][1] <= 8'd255;
+    cell_color[1][2] <= 8'd255;
+    cell_color[2][0] <= 8'd255;
+    cell_color[2][1] <= 8'd255;
+    cell_color[2][2] <= 8'd255;
+    cell_color[3][0] <= 8'd255;
+    cell_color[3][1] <= 8'd128;
+    cell_color[3][2] <= 8'd128;
+
+    background_color[0][0] <= 8'd0;
+    background_color[0][1] <= 8'd0;
+    background_color[0][2] <= 8'd0;
+    background_color[1][0] <= 8'd23;
+    background_color[1][1] <= 8'd63;
+    background_color[1][2] <= 8'd63;
+    background_color[2][0] <= 8'd63;
+    background_color[2][1] <= 8'd23;
+    background_color[2][2] <= 8'd63;
+    background_color[3][0] <= 8'd63;
+    background_color[3][1] <= 8'd63;
+    background_color[3][2] <= 8'd23;
     hdata = 0;
     vdata = 0;
     video_green = 0 ;
@@ -110,8 +135,12 @@ always @ (posedge clk) begin
     end
     prev_pos <= pos;
     // pos <= ((vdata >> scroll) + shift_y) * P_PARAM_N + ((hdata >> scroll) + shift_x);
-    cell_color[0] <= {pos[4:0], pos[7:5]};
-    cell_color[1] <= {pos[2:0], pos[7:3]};
+    cell_color[0][0] <= {pos[4:0], pos[7:5]};
+    cell_color[0][1] <= {pos[2:0], pos[7:3]};
+    cell_color[2][0] <= {1'b0, pos[3:1], pos[7:4]};
+    cell_color[2][2] <= {1'b1, pos[3:0], pos[7:5]};
+    cell_color[3][1] <= {1'b1, pos[3:0], pos[7:5]};
+    cell_color[3][2] <= {1'b0, pos[3:1], pos[7:4]};
     // cell_color[0] <= {1'b1, pos[4:1], pos[7:5]};
     // cell_color[1] <= {1'b1, pos[2:1], pos[7:3]};
     // cell_color[2] <= {1'b1, pos[6:0]};
@@ -130,9 +159,9 @@ begin
                 // video_red   <= 8'b11111111;
                 // video_green <= 8'b11111111;
                 // video_blue  <= 8'b11111111;
-                video_red   <= cell_color[0];
-                video_green <= cell_color[1];
-                video_blue  <= cell_color[2];
+                video_red   <= cell_color[display_color_id[1:0]][0];
+                video_green <= cell_color[display_color_id[1:0]][1];
+                video_blue  <= cell_color[display_color_id[1:0]][2];
             end
         end
         else begin
@@ -143,9 +172,12 @@ begin
                 video_blue <= 8'b11111111;
             end
             else begin
-                video_red   <= 8'b00000000;
-                video_green <= 8'b00000000;
-                video_blue  <= 8'b00000000; 
+                // video_red   <= 8'b00000000;
+                // video_green <= 8'b00000000;
+                // video_blue  <= 8'b00000000; 
+                video_red   <= background_color[display_color_id[3:2]][0];
+                video_green <= background_color[display_color_id[3:2]][1];
+                video_blue  <= background_color[display_color_id[3:2]][2]; 
             end
         end
     end
