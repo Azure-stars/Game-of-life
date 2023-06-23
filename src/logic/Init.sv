@@ -1,28 +1,28 @@
 /// 用于从初始化RAM读取内容转移到其他四个RAM中
 
 module Init #(
-    P_PARAM_M = 5,  // 行 
-    P_PARAM_N = 5,  // 列
-    WIDTH = 12,    // 宽度
-    BLOCK_LEN = 1
+    P_PARAM_M = 5,          // 行 
+    P_PARAM_N = 5,          // 列
+    WIDTH = 12,             // 每一行显示的像素的个数
+    BLOCK_LEN = 1,          // 每块包含的像素数目
+    READ_COL = 5    // 每一行的块数，在RAM中逐块存储像素信息
 )(
-    input wire clk,
-    input wire start,       // 是否开始新的一轮写入
-    input wire[BLOCK_LEN - 1: 0] read_val,    // 读取的数据
-    output reg [2*WIDTH-1:0] read_addr,   // 读取的地址
-    output reg [2*WIDTH-1:0] write_addr, // 写入的地址
-    output reg write_en,   // 写入使能
-    output reg[BLOCK_LEN - 1: 0] write_val,  // 写入的数据
-    output reg finish      // 已经完成了写入
+    input wire clk,         // 全局时钟
+    input wire start,       // 是否开始新的一轮初始化
+    input wire[BLOCK_LEN - 1: 0] read_val,      // 从RAM读取的数据
+    output reg [2*WIDTH-1:0] read_addr,         // 读取的地址
+    output reg [2*WIDTH-1:0] write_addr,        // 写入的地址
+    output reg write_en,                        // 写入使能
+    output reg[BLOCK_LEN - 1: 0] write_val,     // 写入的数据
+    output reg finish                           // 是否完成了写入
 );
     reg [2:0] state;
-    parameter STATE_INIT = 0;
-    parameter STATE_START = 1;
-    parameter STATE_READ = 2;
-    parameter STATE_WRITE = 3;
-    parameter STATE_FINISH = 4;
-    parameter READ_COL = P_PARAM_N / BLOCK_LEN;
-    reg prev_start;
+    parameter STATE_INIT = 0;       // 初始化状态
+    parameter STATE_START = 1;      // 开始状态
+    parameter STATE_READ = 2;       // 读取状态
+    parameter STATE_WRITE = 3;      // 写入状态
+    parameter STATE_FINISH = 4;     // 完成初始化
+    reg prev_start;                 // 是否开始新的一轮初始化
     initial begin
         prev_start = 0;
         state = 0;
@@ -52,10 +52,6 @@ module Init #(
                 write_en <= 1;
                 state <= STATE_WRITE;
             end
-            // STATE_CALC : begin
-            //     // 这个地方已经把写入的值准备好了
-            //     state <= STATE_WRITE;
-            // end
             STATE_WRITE : begin
                 // 这个地方已经把写入的值准备好了
                 state <= STATE_FINISH;

@@ -40,92 +40,89 @@ ip_pll u_ip_pll(
     .c2     (clk_spi )   // 5MHz SPI SDcard 时钟
 );
 
-parameter P_PARAM_N = 800;
-parameter P_PARAM_M = 600;
+parameter P_PARAM_N = 800;              // 屏幕像素列数
+parameter P_PARAM_M = 600;              // 屏幕像素行数
 parameter P_PARAM_K = 1;                // 列数对应的二进制次幂
-parameter STATE_RST = 2'd0;            // 复位回到的状态，代表演化还没有开始
-parameter STATE_RUNNING = 2'd1;        // 游戏正在运行中，此时`clk_evo`会进行计时变化
-parameter STATE_PAUSE = 2'd2;          // 游戏暂停，此时停止演化
-parameter BLOCK_LEN = 7'd32;
-parameter READ_COL = 6'd25;
+parameter STATE_RST = 2'd0;             // 复位回到的状态，代表演化还没有开始
+parameter STATE_RUNNING = 2'd1;         // 游戏正在运行中，此时`clk_evo`会进行计时变化
+parameter STATE_PAUSE = 2'd2;           // 游戏暂停，此时停止演化
+parameter BLOCK_LEN = 7'd32;            // 每个块的长度
+parameter READ_COL = 6'd25;             // 屏幕每行拥有的块的数目,READ_COL = P_PARAM_N / BLOCK_LEN
+
+
 // 图像输出演示，分辨率 800x600@75Hz，像素时钟为 50MHz，显示渐变色彩条
-reg[7:0] output_video_red;      // 输出的像素颜色
-reg[7:0] output_video_blue;     // 输出的像素颜色
-reg[7:0] output_video_green;    // 输出的像素颜色
+reg[7:0] output_video_red;                          // 输出的像素颜色
+reg[7:0] output_video_blue;                         // 输出的像素颜色
+reg[7:0] output_video_green;                        // 输出的像素颜色
 
-reg[30:0] evo_cnt;              // 1Hz时钟的计数器
-reg[3:0] evo_left_shift;
+reg[30:0] evo_cnt;                                  // 演化时钟的计数器
+reg[3:0] evo_left_shift;                            // 演化时钟加速器，不同的取值对应不同的周期
+reg clk_evo;                                        // 演化用时钟，当时钟沿变化时，进行演化
 
-
-reg[4:0][BLOCK_LEN - 1: 0] ram_read_data;         // ram读取的数据
+reg[4:0][BLOCK_LEN - 1: 0] ram_read_data;           // ram读取的数据
 logic[4:0][BLOCK_LEN - 1: 0] ram_write_data;        // ram写入的数据
-logic[4:0][23:0] ram_pos;         // ram的读写位置
-reg clk_evo;                    // 1Hz时钟
-logic [4:0] ram_rden;             // ram的读取使能
-logic [4:0] ram_wden;             // ram的写入使能
+logic[4:0][23:0] ram_pos;                           // ram的读写位置
+
+logic [4:0] ram_rden;                               // ram的读取使能
+logic [4:0] ram_wden;                               // ram的写入使能
 
 
 logic[BLOCK_LEN - 1: 0] vga_read_val;               // vga当前读取的值
-reg [23:0] vga_pos;               // vga当前读取的位置
+reg [23:0] vga_pos;                                 // vga当前读取的位置
 
 
-wire round_wden;                  // round写使能
-logic [23:0]round_read_pos;      // round当前读取的位置
-wire [23:0]round_write_pos;      // round当前写入的位置
-wire[BLOCK_LEN - 1: 0] round_read_val;             // round当前读取的值
-reg[BLOCK_LEN - 1: 0] round_write_val;            // round当前即将写入的值，即某一个像素的演化后的状态
+wire round_wden;                                    // round写使能
+logic [23:0]round_read_pos;                         // round当前读取的位置
+wire [23:0]round_write_pos;                         // round当前写入的位置
+wire[BLOCK_LEN - 1: 0] round_read_val;              // round当前读取的值
+reg[BLOCK_LEN - 1: 0] round_write_val;              // round当前即将写入的值，即某一个像素的演化后的状态
 
 
-reg init_label;                 // 是否进行初始化
-wire[BLOCK_LEN - 1: 0] init_read_val;              // init读取的值
-reg[BLOCK_LEN - 1: 0] init_write_val;             // init写入的值
-logic [23:0]init_read_pos;
-wire [23:0]init_write_pos;
-reg init_finish;
-wire init_wden; 
-wire [23:0] preset_write_pos;
-wire preset_wden;
-wire [BLOCK_LEN - 1: 0]preset_write_val;
-reg preset_finish;
-reg preset_rden;
-reg [BLOCK_LEN - 1: 0]preset_read_val;
+reg init_label;                                     // 是否进行初始化
+wire[BLOCK_LEN - 1: 0] init_read_val;               // init读取的值
+reg[BLOCK_LEN - 1: 0] init_write_val;               // init写入的值
+logic [23:0]init_read_pos;                          // 初始化时读取RAM的地址
+wire [23:0]init_write_pos;                          // 初始化时写入RAM的地址
+reg init_finish;                                    // 初始化是否完成
+wire init_wden;                                     // 初始化写使能
 
-reg [11:0]setting_hdata;          // 手动写入的位置        
-reg [11:0]setting_vdata;    
-reg [23:0]setting_pos;              
 
-reg [1:0] state;
-reg [1:0] prev_state;
-reg start;                          // 本周期的开始按钮是否被按下
-reg pause;                          // 本周期的暂停按钮是否被按下
-reg clear;                          // 本周期的清空按钮是否被按下
-// reg manual;                         // 本周起的手动设置按钮是否被按下
-reg modify;                         // 本周期的修改按钮是否被按下    
-reg reload;                         // 重新加载当前文件
+wire [23:0] preset_write_pos;                       // 预设时写入RAM的地址
+wire preset_wden;                                   // 预设写使能
+wire [BLOCK_LEN - 1: 0]preset_write_val;            // 预设时写入RAM的值
+reg preset_finish;                                  // 预设是否完成
+reg preset_rden;                                    // 预设读使能
+reg [BLOCK_LEN - 1: 0]preset_read_val;              // 预设时读取RAM的值
+
+reg [1:0] state;                                    // 当前状态机的值
+reg [1:0] prev_state;                               // 上一个状态机的值
+reg start;                                          // 本周期的开始按钮是否被按下
+reg pause;                                          // 本周期的暂停按钮是否被按下
+reg clear;                                          // 本周期的清空按钮是否被按下
+reg reload;                                         // 重新加载当前文件
 
 // 放缩平移
-reg [15:0] shift_x;
-reg [15:0] shift_y;
-reg [3:0] scroll;
-reg [31:0] display_color_id;    // 输出颜色风格
+reg [15:0] shift_x;                                 // x轴平移
+reg [15:0] shift_y;                                 // y轴平移
+reg [3:0] scroll;                                   // 放缩
+reg [31:0] display_color_id;                        // 输出颜色风格
 
-// 数码管显示数字
-reg [31: 0] dpy_number;
+reg [31: 0] dpy_number;                             // 数码管显示数字
                 
 initial begin   
+    // 初始化全局赋值
     state = STATE_RST;
     prev_state = STATE_RST;
     init_finish = 0;
     preset_finish = 1;
     evo_cnt = 0;
     clk_evo = 0;
-    setting_hdata = P_PARAM_N / 2;
-    setting_vdata = P_PARAM_M / 2;
-    setting_pos = setting_hdata + setting_vdata * P_PARAM_N;
 end
 
 always @ (posedge clk_vga, posedge reset_btn) begin
     if (reset_btn) begin
+        // 进行复位
+        // 时钟归零
         evo_cnt <= 0;
         clk_evo <= 0;
         init_label <= ~init_label;
@@ -133,7 +130,9 @@ always @ (posedge clk_vga, posedge reset_btn) begin
     end
     else begin
         if (state == STATE_RUNNING) begin
+            // 当前正处于运行演化状态
             if (evo_cnt >= (30'd99999 << evo_left_shift)) begin
+                // 若当前达到了计数器上限，则改变时钟电位进行演化
                 if (clk_evo == 0) begin
                     clk_evo <= 1;
                 end else begin
@@ -146,39 +145,48 @@ always @ (posedge clk_vga, posedge reset_btn) begin
         end
         case (state)
             STATE_RST : begin
+                // 此时正处于复位后状态，准备接受输入
                 if (start == 1) begin
+                    // 如果按下了开始按钮，则进入运行状态
                     evo_cnt <= 0;
                     clk_evo <= 0;
                     state <= STATE_RUNNING;
                 end
                 else begin
+                    // 否则继续保持复位状态
                     state <= STATE_RST;
                 end
             end
             STATE_RUNNING : begin
-                // 暂时不支持清空和暂停
+                // 此时正处于运行状态
                 if (pause == 1) begin
-                   state <= STATE_PAUSE;
+                    // 如果按下了暂停按钮，则进入暂停状态
+                    // 注意此时的clk没有清零
+                    state <= STATE_PAUSE;
                 end
                 else if (clear == 1) begin
+                    // 如果按下了清空按钮，则进入复位状态
                     evo_cnt <= 0;
                     clk_evo <= 0;
+                    // 此时复位要触发一次新的初始化
                     init_label <= ~init_label;
                     state <= STATE_RST;
                 end
                 else begin
-                   state <= STATE_RUNNING; 
+                    state <= STATE_RUNNING; 
                 end
             end
             default: begin
                 // STATE_PAUSE
-                // 只有通过按钮才可以脱离暂停状态
                 if (start == 1) begin
+                    // 如果按下了开始按钮，则进入运行状态
                     state <= STATE_RUNNING;
                 end
                 else if (clear == 1) begin
+                    // 如果按下了清空按钮，则进入复位状态
                     evo_cnt <= 0;
                     clk_evo <= 0;
+                    // 此时复位要触发一次新的初始化
                     init_label <= ~init_label;
                     state <= STATE_RST;
                 end
@@ -231,6 +239,7 @@ RAM_32_16384 ram_4(
     .data(ram_write_data[3])
 );
 
+// 初始化的数据存储的模块，是一个只读模块，存储了最开始的初始化局面
 RAM_32_16384 ram_init
 (
     .address(ram_pos[4]),
@@ -241,6 +250,7 @@ RAM_32_16384 ram_init
     .data(ram_write_data[4])
 );
 
+// 演化模块
 Round #(P_PARAM_M, P_PARAM_N, 12, BLOCK_LEN, READ_COL) round (
     .clk(clk_vga),
     .start(start),
@@ -253,7 +263,8 @@ Round #(P_PARAM_M, P_PARAM_N, 12, BLOCK_LEN, READ_COL) round (
     .live(round_write_val)              // 仅在写使能为高时有效
 );
 
-Init #(P_PARAM_M, P_PARAM_N, 12, BLOCK_LEN) init(
+// 初始化填充模块
+Init #(P_PARAM_M, P_PARAM_N, 12, BLOCK_LEN, READ_COL) init(
     .clk(clk_vga),
     .start(init_label),
     .read_val(init_read_val),
@@ -263,11 +274,12 @@ Init #(P_PARAM_M, P_PARAM_N, 12, BLOCK_LEN) init(
     .write_addr(init_write_pos),
     .finish(init_finish)
 );
+
 assign video_clk = clk_vga;
+// vga显示模块
 vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1, P_PARAM_N, P_PARAM_M, BLOCK_LEN) vga800x600at50 (
 	.clk(clk_vga),
 	.vga_live(vga_read_val),
-	.setting_pos(setting_pos),
 	.output_pos(vga_pos),
 	.video_red(output_video_red),
 	.video_green(output_video_blue),
@@ -283,8 +295,11 @@ vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1, P_PARAM_N, P_PARAM_M, B
 
 // // 键盘控制模块
 
+// 记录当前预设读取的文件
 reg [15:0] file_id;
 
+
+// 键盘控制模块
 KeyBoardController #(P_PARAM_N, P_PARAM_M) keyboard_controller (
 	.clk_in    (clk_vga),
 	.reset     (reset_btn),
@@ -293,7 +308,6 @@ KeyBoardController #(P_PARAM_N, P_PARAM_M) keyboard_controller (
 	.pause     (pause),
 	.start     (start),
 	.clear     (clear),
-	// .manual(manual),
 	.file_id   (file_id),
 	.reload     (reload),
 	.shift_x   (shift_x),
@@ -301,17 +315,14 @@ KeyBoardController #(P_PARAM_N, P_PARAM_M) keyboard_controller (
 	.scroll    (scroll),
 	.evo_left_shift (evo_left_shift),
 	.dpy_number (dpy_number),
-   .setting_hdata  (setting_hdata),
-   .setting_vdata  (setting_vdata),
-   .setting_pos    (setting_pos),
-   .modify         (modify),
 	.display_color_id (display_color_id)
 );
 
 // SD卡
-
+// 当前SD卡读取是否完成
 wire read_file_finish;
 
+// SD卡读取模块
 SDCardReader #(P_PARAM_N, P_PARAM_M, BLOCK_LEN) sd_card_reader(
 	.clk_spi            (clk_vga),
 	.reset              (reset_btn),
@@ -350,6 +361,7 @@ assign ram_wden[4] = 0;
 
 always_comb begin
     if (state == STATE_RST) begin
+        // 当前处于复位模块，先进行初始化操作
         if (init_finish == 0 && preset_finish == 0) begin
             ram_rden[0] = 0;
             ram_rden[1] = 0;
@@ -357,24 +369,28 @@ always_comb begin
             ram_rden[3] = 0;
         end
         else begin
+            // 若初始化完成，则所有的读使能都为1
             ram_rden[0] = 1;
             ram_rden[1] = 1;
             ram_rden[2] = 1;
             ram_rden[3] = 1;
         end
         if (init_finish == 0) begin
+            // 若未完成初始化，那么写入权限在初始化模块
             ram_wden[0] = init_wden;
             ram_wden[1] = init_wden;
             ram_wden[2] = init_wden;
             ram_wden[3] = init_wden;
         end
         else if (preset_finish == 0) begin
+            // 否则若未完成预设，那么写入权限在预设模块
             ram_wden[0] = preset_wden;
             ram_wden[1] = preset_wden;
             ram_wden[2] = preset_wden;
             ram_wden[3] = preset_wden;
         end
         else begin
+            // 否则写入权限为0
             ram_wden[0] = 0;
             ram_wden[1] = 0;
             ram_wden[2] = 0;
@@ -382,47 +398,56 @@ always_comb begin
         end
     end
     else begin
+        // 当前处于运行或者暂停状态
+        // 根据当前时钟状态进行读写使能的变化
+
+        // clk_evo为高电平的时候读取0 和 1，写入2 和 3
         ram_rden[0] = (clk_evo == 1) ? 1 : 0;
-        ram_rden[1] = (clk_evo == 1) ? 1 : 0;
-        ram_rden[2] = (clk_evo == 1) ? 0 : 1;
-        ram_rden[3] = (clk_evo == 1) ? 0 : 1;
         ram_wden[0] = (clk_evo == 1) ? 0 : round_wden;
+        ram_rden[1] = (clk_evo == 1) ? 1 : 0;
         ram_wden[1] = (clk_evo == 1) ? 0 : round_wden;
+
+        // clk_evo为低电平的时候读取2 和 3，写入0 和 1
+        ram_rden[2] = (clk_evo == 1) ? 0 : 1;
         ram_wden[2] = (clk_evo == 1) ? round_wden : 0;
+        ram_rden[3] = (clk_evo == 1) ? 0 : 1;
         ram_wden[3] = (clk_evo == 1) ? round_wden : 0;
     end
 end
 
 // RAM读写数据变化
 assign round_read_val = (clk_evo == 1) ? ram_read_data[0] : ram_read_data[2];
-// assign vga_read_val = (clk_evo == 1) ? ram_read_data[1] : ram_read_data[3];
-assign init_read_val = ram_read_data[4];
+assign init_read_val = ram_read_data[4];        // 初始化所用数据
 always_comb begin
     if (state == STATE_RST && (init_finish == 0 || preset_finish == 0)) begin
+        // 若当前处于复位状态，且初始化或者预设未完成，则读取0
         vga_read_val = 8'b00000000;
     end
     else begin
+        // 否则根据当前时钟状态选择对应RAM进行读取
         vga_read_val = (clk_evo == 1) ? ram_read_data[1] : ram_read_data[3];
     end
 end
-// assign vga_read_val = (pause == 1) ?  1 : 0;
 
-// 后续实现预设写入则使用注释代码，而非当前代码，需要对输出值进行控制
+// 控制数据模块
 always_comb begin
     if (state == STATE_RST) begin
         if (init_finish == 0) begin
+            // 若未完成初始化，则写入初始化数据
             ram_write_data[0] = init_write_val;
             ram_write_data[1] = init_write_val;
             ram_write_data[2] = init_write_val;
             ram_write_data[3] = init_write_val;
         end
         else if (preset_finish == 0) begin
+            // 若未完成预设，则写入预设数据
             ram_write_data[0] = preset_write_val;
             ram_write_data[1] = preset_write_val;
             ram_write_data[2] = preset_write_val;
             ram_write_data[3] = preset_write_val;
         end
         else begin
+            // 否则不写入，以0占位
             ram_write_data[0] = 0;
             ram_write_data[1] = 0;
             ram_write_data[2] = 0;
@@ -430,6 +455,7 @@ always_comb begin
         end
     end
     else begin
+        // 否则根据当前时钟状态选择对应RAM进行写入对应的演化数据
         ram_write_data[0] = round_write_val;
         ram_write_data[1] = round_write_val;
         ram_write_data[2] = round_write_val;
@@ -440,21 +466,25 @@ assign ram_write_data[4] = 0;
 // RAM地址变化
 assign ram_pos[4] = init_read_pos;
 
+// 控制RAM地址变化
 always_comb begin
     if (state == STATE_RST) begin
         if (init_finish == 0) begin
+            // 若未完成初始化，则使用初始化地址
             ram_pos[0] = init_write_pos;
             ram_pos[1] = init_write_pos;
             ram_pos[2] = init_write_pos;
             ram_pos[3] = init_write_pos;
         end
         else if (preset_finish == 0) begin
+            // 若未完成预设，则使用预设地址
             ram_pos[0] = preset_write_pos;
             ram_pos[1] = preset_write_pos;
             ram_pos[2] = preset_write_pos;
             ram_pos[3] = preset_write_pos;
         end
         else begin
+            // 否则使用VGA地址进行显示
             ram_pos[0] = vga_pos;
             ram_pos[1] = vga_pos;
             ram_pos[2] = vga_pos;
@@ -462,6 +492,7 @@ always_comb begin
         end
     end
     else begin
+        // 否则根据当前时钟状态选择显示或者演化写入地址
         ram_pos[0] = (clk_evo == 1) ? round_read_pos : round_write_pos;
         ram_pos[1] = (clk_evo == 1) ? vga_pos : round_write_pos;
         ram_pos[2] = (clk_evo == 1) ? round_write_pos : round_read_pos;
@@ -477,7 +508,6 @@ always_comb begin
 end 
 
 // 调试
-assign leds[31:19] = {setting_hdata[11:0]};
 assign leds[14:0] = { 1'b0 ,file_id[7:0], preset_finish, init_finish, state, pause, start, clear};  // read_file_finish
 
 endmodule

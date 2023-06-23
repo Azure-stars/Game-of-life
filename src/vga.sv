@@ -16,31 +16,29 @@ module vga
 #(parameter WIDTH = 0, HSIZE = 0, HFP = 0, HSP = 0, HMAX = 0, VSIZE = 0, VFP = 0, VSP = 0, VMAX = 0, HSPP = 0, VSPP = 0, P_PARAM_N = 0, P_PARAM_M = 0, BLOCK_LEN = 1)
 (
 
-    input wire [15:0] shift_x,
-    input wire [15:0] shift_y,
-    input wire [3:0] scroll,
+    input wire [15:0] shift_x,                          // 用于移动的偏移量横坐标
+    input wire [15:0] shift_y,                          // 用于移动的偏移量纵坐标
+    input wire [3:0] scroll,                            // 用于缩放的参数
 
-    input wire clk,
-    input wire [BLOCK_LEN - 1: 0] vga_live,                // vga读取的像素是否存活
-    input wire setting_status,          // 是否为手动选中状态
-    input wire [2 * WIDTH - 1:0] setting_pos,      // 手动选中的位置
-	 input wire [31:0] display_color_id,
+    input wire clk,                                     // 时钟
+    input wire [BLOCK_LEN - 1: 0] vga_live,             // 当前块的像素是否存活
+	 input wire [31:0] display_color_id,                // 当前显示的背景色的编号
 	 
-    output wire hsync,  
-    output wire vsync,
-    output reg [2 * WIDTH - 1:0] output_pos,   // 当前读取的位置
-    output reg [7: 0] video_red,        // 红色像素，8位
-    output reg [7: 0] video_green,      // 绿色像素，8位 
-    output reg [7: 0] video_blue,       // 蓝色像素，8位
-    output wire data_enable
+    output wire hsync,                                  // 水平同步信号
+    output wire vsync,                                  // 垂直同步信号
+    output reg [2 * WIDTH - 1:0] output_pos,            // 当前读取的像素对应的块编号
+    output reg [7: 0] video_red,                        // 红色像素，8位
+    output reg [7: 0] video_green,                      // 绿色像素，8位 
+    output reg [7: 0] video_blue,                       // 蓝色像素，8位
+    output wire data_enable                             // 数据使能信号
 );
-reg[2*WIDTH - 1:0] prev_pos; 
-reg[2*WIDTH - 1:0] pos;
-reg [7:0] cell_color [3:0][2:0];
-reg [7:0] background_color [3:0][2:0];
+reg[2*WIDTH - 1:0] prev_pos;        // 上一个周期时读取的像素位置，由于读取存在时延导致需要记录前一个位置
+reg[2*WIDTH - 1:0] pos;             // 当前读取的RAM的像素的编号，用来计算所在的块
+reg [7:0] cell_color [3:0][2:0];    // 每个块的颜色，共4个块，每个块有3个颜色
+reg [7:0] background_color [3:0][2:0];  // 每个块的背景颜色，共4个块，每个块有3个颜色
 
-reg[WIDTH - 1:0] hdata;
-reg[WIDTH - 1:0] vdata;
+reg[WIDTH - 1:0] hdata;             // 当前读取的横坐标
+reg[WIDTH - 1:0] vdata;             // 当前读取的纵坐标
 
 initial begin
     cell_color[0][0] <= 8'd255;
@@ -75,6 +73,7 @@ initial begin
     video_red = 0;
 end
 
+// 由于块长固定为32，因此可以直接用位移来计算块编号
 assign output_pos = pos[2*WIDTH - 1:5];
 
 // WIDTH与整个屏幕有关
@@ -108,6 +107,7 @@ initial begin
 end
 always @ (posedge clk) begin
     if (hdata < HSIZE) begin
+        // 注意考虑偏移和放缩
         pos <= ((vdata[WIDTH - 1:0] >> scroll) + shift_y) * P_PARAM_N + ((hdata[WIDTH - 1:0] >> scroll) + shift_x) + 2;  // {vdata, 9'd0} + {vdata, 8'd0} + {vdata, 5'd0}
     end
     else if (hdata == HMAX - 2) begin
@@ -149,36 +149,16 @@ always @ (posedge clk)
 begin
     if(hdata < HSIZE && vdata < VSIZE) begin
         if (vga_live[prev_pos[4:0]]) begin
-            // 存活，为白色
-            if (setting_status && setting_pos == pos) begin
-                video_red <= 8'b11111111;
-                video_green <= 8'b00000000;
-                video_blue <= 8'b00000000;
-            end
-            else begin
-                // video_red   <= 8'b11111111;
-                // video_green <= 8'b11111111;
-                // video_blue  <= 8'b11111111;
-                video_red   <= cell_color[display_color_id[1:0]][0];
-                video_green <= cell_color[display_color_id[1:0]][1];
-                video_blue  <= cell_color[display_color_id[1:0]][2];
-            end
+            // 存活
+            video_red   <= cell_color[display_color_id[1:0]][0];
+            video_green <= cell_color[display_color_id[1:0]][1];
+            video_blue  <= cell_color[display_color_id[1:0]][2];
         end
         else begin
-            // 非黑即白
-            if (setting_status && setting_pos == pos) begin
-                video_red <= 8'b00000000;
-                video_green <= 8'b00000000;
-                video_blue <= 8'b11111111;
-            end
-            else begin
-                // video_red   <= 8'b00000000;
-                // video_green <= 8'b00000000;
-                // video_blue  <= 8'b00000000; 
-                video_red   <= background_color[display_color_id[3:2]][0];
-                video_green <= background_color[display_color_id[3:2]][1];
-                video_blue  <= background_color[display_color_id[3:2]][2]; 
-            end
+            // 死亡
+            video_red   <= background_color[display_color_id[3:2]][0];
+            video_green <= background_color[display_color_id[3:2]][1];
+            video_blue  <= background_color[display_color_id[3:2]][2]; 
         end
     end
     else begin

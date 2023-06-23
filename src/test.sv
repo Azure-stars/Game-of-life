@@ -1,6 +1,7 @@
 `timescale 1ns / 1ps
 module mod_top_test();
 
+// 仿真模块
 reg clk_100m = 0;
 
 wire [7:0]  video_blue ;

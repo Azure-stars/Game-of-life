@@ -78,7 +78,6 @@ set_global_assignment -name OUTPUT_IO_TIMING_FAR_END_VMEAS "HALF SIGNAL SWING" -
 set_global_assignment -name SYSTEMVERILOG_FILE src/logic/Evolution.sv
 set_global_assignment -name SYSTEMVERILOG_FILE src/mod_top.sv
 set_global_assignment -name QIP_FILE ip/pll/ip_pll.qip
-set_global_assignment -name VERILOG_FILE src/dpy_scan.v
 set_global_assignment -name SOURCE_TCL_SCRIPT_FILE io.tcl
 set_global_assignment -name SYSTEMVERILOG_FILE src/vga.sv
 set_global_assignment -name EDA_TEST_BENCH_ENABLE_STATUS TEST_BENCH_MODE -section_id eda_simulation
@@ -88,7 +87,6 @@ set_global_assignment -name SYSTEMVERILOG_FILE src/test.sv
 set_global_assignment -name EDA_TEST_BENCH_NAME mod_top_test -section_id eda_simulation
 set_global_assignment -name EDA_DESIGN_INSTANCE_NAME NA -section_id mod_top_test
 set_global_assignment -name EDA_TEST_BENCH_MODULE_NAME mod_top_test -section_id mod_top_test
-set_global_assignment -name QIP_FILE ip/ram/RAM_1_524288.qip
 set_global_assignment -name ENABLE_SIGNALTAP ON
 set_global_assignment -name USE_SIGNALTAP_FILE stp2.stp
 set_global_assignment -name SIGNALTAP_FILE stp2.stp
@@ -136,12 +134,7 @@ set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[22] -
 set_global_assignment -name EDA_TEST_BENCH_FILE src/test.sv -section_id mod_top_test
 set_global_assignment -name EDA_TEST_BENCH_FILE ip/pll/ip_pll.v -section_id mod_top_test
 set_global_assignment -name EDA_TEST_BENCH_FILE ip/ram/RAM_1_524288.qip -section_id mod_top_test
-set_global_assignment -name VERILOG_FILE src/keyboard.v
-set_global_assignment -name SYSTEMVERILOG_FILE src/KeyBoardController.sv
-set_global_assignment -name VERILOG_FILE src/sdcard.v
-set_global_assignment -name SYSTEMVERILOG_FILE src/SDCardBlockReader.sv
 set_global_assignment -name SYSTEMVERILOG_FILE src/logic/Init.sv
-set_global_assignment -name SYSTEMVERILOG_FILE src/SDCardReader.sv
 set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[0] -to "KeyBoardController:keyboard_controller|file_id[0]~reg0" -section_id auto_signaltap_0
 set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[1] -to "Round:round|live" -section_id auto_signaltap_0
 set_instance_assignment -name CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[2] -to "Round:round|prev_status" -section_id auto_signaltap_0
@@ -620,5 +613,11 @@ set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[7] -t
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[12] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[30] -to auto_signaltap_0|gnd -section_id auto_signaltap_0
 set_global_assignment -name QIP_FILE ip/ram/RAM_32_16384.qip
-set_global_assignment -name SLD_FILE db/stp2_auto_stripped.stp
+set_global_assignment -name VERILOG_FILE src/peripheral/dpy_scan.v
+set_global_assignment -name VERILOG_FILE src/peripheral/keyboard.v
+set_global_assignment -name SYSTEMVERILOG_FILE src/peripheral/KeyBoardController.sv
+set_global_assignment -name VERILOG_FILE src/peripheral/sdcard.v
+set_global_assignment -name SYSTEMVERILOG_FILE src/peripheral/SDCardBlockReader.sv
+set_global_assignment -name SYSTEMVERILOG_FILE src/peripheral/SDCardReader.sv
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
+set_global_assignment -name SLD_FILE db/stp2_auto_stripped.stp
