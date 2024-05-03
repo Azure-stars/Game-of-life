@@ -1,45 +1,45 @@
 `timescale 1ns / 1ps
 // 负责全局的演化
 module Round #(
-    P_PARAM_M = 5,  // 行 
-    P_PARAM_N = 5,  // 列
-    WIDTH = 12,     // 每一行显示的像素的个数
+    P_PARAM_M = 5,  // 可视区域中生命可以活动的行数
+    P_PARAM_N = 5,  // 可视区域中生命可以活动的列数
+    WIDTH = 12,     // 每一行显示的像素个数的位宽，如为 x，则每一行最多可以显示 2^x 个像素
     BLOCK_LEN = 1,  // 每块包含的像素数目
-    READ_COL = 5    // 每一行的块数，在RAM中逐块存储像素信息
+    READ_COL = 5    // 每一行的块数，在RAM中逐块存储像素信息，READ_COL = P_PARAM_N / BLOCK_LEN
 )
 (
-    input wire clk,                 // 全局时钟
-    input wire start,               // 开始游戏的标志
-    input wire rst,                 // 全局复位
-    input wire global_evo_en,       // 演化标志
-    input wire[BLOCK_LEN - 1: 0] round_read_val,   // 演化时有效，代表这个round_read_pos在上一个周期的状态
-    output reg wden,                // 演化时有效，代表需要写入
-    output reg[2*WIDTH - 1: 0] round_read_pos, // 演化时有效，代表当前演化需要读取的数的位置
-    output reg[2*WIDTH - 1: 0] round_write_pos,// 演化时有效，代表演化需要写入的数的位置
-    output reg[BLOCK_LEN - 1: 0] live                  // 演化时有效，代表当前位置下一个周期的状态
+    input wire clk,                                     // 全局时钟
+    input wire start,                                   // 开始游戏的标志，上升沿时代表开始游戏重新开始
+    input wire rst,                                     // 全局复位
+    input wire global_evo_en,                           // 演化标志，上升沿时代表开始新一轮的演化
+    input wire[BLOCK_LEN - 1: 0] round_read_val,        // 演化时有效，代表这个round_read_pos在上一个周期的状态
+    output reg wden,                                    // 演化时有效，代表需要写入
+    output reg[2*WIDTH - 1: 0] round_read_pos,          // 演化时有效，代表当前演化需要读取的数的位置
+    output reg[2*WIDTH - 1: 0] round_write_pos,         // 演化时有效，代表演化需要写入的数的位置
+    output reg[BLOCK_LEN - 1: 0] live                   // 演化时有效，代表当前位置下一个周期的状态
 );
 
-reg prev_global_evo_en;
+reg prev_global_evo_en;                         // 上一个周期的演化标志，和 global_evo_en 一起判断是否开始新一轮的演化
 
-parameter P_RST = 0;        // 复位周期，此时应当将所有的状态清空
-parameter P_LINE_UP = 1;    // 读取当前计算点所在的行的上一行
-parameter P_LINE_MIDDLE = 2;// 读取当前计算点所在的行
-parameter P_LINE_DOWN = 3;  // 读取当前计算点所在的行的下一行      
-parameter P_TEMP = 4;       // 中转周期，用于将RAM读取的信息存储在寄存器中
-parameter P_CALC = 5;       // 计算周期，在这个周期开始时，下一轮的演化结果已经出来了，要将其写入RAM
-parameter P_FINISH = 6;     // 结束周期，判断是继续，还是完成了演化
-reg [2:0] status;           // 状态机的状态
+parameter P_RST = 0;                            // 复位周期，此时应当将所有的状态清空
+parameter P_LINE_UP = 1;                        // 准备读取当前计算点所在的行的上一行，会在下一个周期读到
+parameter P_LINE_MIDDLE = 2;                    // 准备读取当前计算点所在的行，会在下一个周期读到
+parameter P_LINE_DOWN = 3;                      // 主编内读取当前计算点所在的行的下一行，会在下一个周期读到      
+parameter P_TEMP = 4;                           // 中转周期，用于将RAM读取的信息存储在寄存器中
+parameter P_CALC = 5;                           // 计算周期，在这个周期开始时，下一轮的演化结果已经出来了，要将其写入RAM
+parameter P_FINISH = 6;                         // 结束周期，判断是继续，还是完成了演化
+reg [2:0] status;                               // 状态机的状态
 reg [BLOCK_LEN * 3 - 1: 0] line_status;         // 以行进行统计的状态
 reg [2*WIDTH - 1: 0] now_pos;                   // 当前演化的位置
 reg [WIDTH - 1: 0] center_hdata;                // 当前演化位置的横坐标
 reg [WIDTH - 1: 0] center_vdata;                // 当前演化位置的纵坐标
 
 reg prev_start;                                 // 存储是否需要重新开始，若是从暂停状态到演化状态，则需要重新开始
-reg [3*BLOCK_LEN - 1: 0] last_line_status;      // 记录当前演化位置的上一个块的上中下三行的状态，用于计算当前块的第一列
-reg [BLOCK_LEN - 1: 0] prev_live;               // 记录上一个块的全部状态
-reg last_prev_live;                             // 上一个块的最后一列的状态
-reg [BLOCK_LEN - 1: 0] now_live;                // 记录当前块的全部存活状态
-reg [2:0] prev_status;                          // 记录上一个周期的位置，因为RAM读取存在时延，因此某一行的数据要到下一个周期才能读取并且存进去
+reg [3*BLOCK_LEN - 1: 0] last_line_status;      // 记录当前演化块的左边上中下三个块的状态，用于计算当前块的第一列
+reg [BLOCK_LEN - 1: 0] prev_live;               // 记录当前演化块左边的块的状态
+reg last_prev_live;                             // 上一个块（即当前演化块左边的块）的最后一列的状态
+reg [BLOCK_LEN - 1: 0] now_live;                // 记录当前块的存活状态
+reg [2:0] prev_status;                          // 记录上一个状态，即上一个周期读取的位置，因为RAM读取存在时延，因此某一行的数据要到下一个周期才能读取并且存进去
 initial begin
     status = P_RST;
     center_hdata = 0;
@@ -50,8 +50,7 @@ initial begin
     last_line_status = 0;
 end
 
-// 计算当前块的第一列与上一个块的最后一列
-// 组合逻辑
+// 计算当前块与上一个块的最后一列的存活状态
 Evolution #(BLOCK_LEN) evo(
     .last_line_status(last_line_status),
     .line_status(line_status),
@@ -169,7 +168,7 @@ always @ (posedge clk or posedge rst) begin
             default : begin
                 line_status <= 0;
                 // 此时读取已经结束了，本块在本周期的大部分生命状态已经存储在live中
-                
+                // 之所以是大部分，因为本块最后一列的存活状态需要依赖下一个块才能得到
                 if (center_hdata == P_PARAM_N - BLOCK_LEN && center_vdata == P_PARAM_M - 1) begin
                     // 此时是最后一块，没有下一块，所以可以写入本块信息
                     // 同时最后一块应当停止运行，即返回P_RST状态
@@ -188,12 +187,17 @@ always @ (posedge clk or posedge rst) begin
                     prev_live <= now_live;
                     if (center_hdata == P_PARAM_N - BLOCK_LEN) begin
                         last_line_status <= 0;  // 这里的清空是必要的，否则会影响下一行第0列的情况
+                        // 对于下一行的第 0 列，我们认为 last_line_status 全空即可
                         // 当前块是一行的最后一块，就不用再依赖下一个块了，可以直接写入
                         live <= now_live;
-                        // 直接写入即可
+                        // 切换到下一行，行数加一，列数清零
                         center_hdata <= 0;
                         center_vdata <= center_vdata + 1;
+                        // round_write_pos 代表本轮写入的位置
                         round_write_pos <= now_pos;
+                        // round_read_pos 改变为下一轮需要读取的位置
+                        // 我们即将进行下一行的第 0 列的运算，这时候由于肯定不是第 0 行
+                        // 所以需要先读取下一行的第 0 列的 UP 块，即本行的第 0 列对应的块
                         round_read_pos <= now_pos + 1 - READ_COL;
                         status <= P_LINE_UP;
                     end
@@ -203,13 +207,13 @@ always @ (posedge clk or posedge rst) begin
                         wden <= 0;
                         center_hdata <= center_hdata + BLOCK_LEN;
                         if (center_vdata == 0) begin
-                            // 下一个块是第一行的，那么没有需要读取的上空闲行
+                            // 下一个块是第一行的，那么没有需要读取的 UP 块，因此从下一行第 0 列开始
                             round_read_pos <= now_pos + 1;
                             status <= P_LINE_MIDDLE;
                         end           
                         else begin
                             status <= P_LINE_UP;
-                            // 否则从上空闲行开始读取
+                            // 否则从 UP 块开始读取，即当前所在行的第 0 列
                             round_read_pos <= now_pos + 1 - READ_COL;
                         end
                     end

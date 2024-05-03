@@ -42,7 +42,6 @@ ip_pll u_ip_pll(
 
 parameter P_PARAM_N = 800;              // 屏幕像素列数
 parameter P_PARAM_M = 600;              // 屏幕像素行数
-parameter P_PARAM_K = 1;                // 列数对应的二进制次幂
 parameter STATE_RST = 2'd0;             // 复位回到的状态，代表演化还没有开始
 parameter STATE_RUNNING = 2'd1;         // 游戏正在运行中，此时`clk_evo`会进行计时变化
 parameter STATE_PAUSE = 2'd2;           // 游戏暂停，此时停止演化
@@ -309,7 +308,7 @@ KeyBoardController #(P_PARAM_N, P_PARAM_M) keyboard_controller (
 	.start     (start),
 	.clear     (clear),
 	.file_id   (file_id),
-	.reload     (reload),
+	.reload    (reload),
 	.shift_x   (shift_x),
 	.shift_y   (shift_y),
 	.scroll    (scroll),
